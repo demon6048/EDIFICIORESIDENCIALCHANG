@@ -1077,11 +1077,8 @@
                                     .reduce((sum, p) => sum + parseFloat(p.amount), 0);
             document.getElementById('dash-income').textContent = formatCurrency(income);
 
-            let debtCount = db.payments.filter(p => p.status === 'Pendiente').length;
-            document.getElementById('dash-debt').textContent = debtCount;
-
             let expiringCount = db.contracts.filter(c => {
-                if(c.status !== 'Activo') return false;
+                if(c.status !== 'Activo' || c.endDate === 'Indefinido') return false;
                 let end = new Date(c.endDate);
                 let diffTime = Math.abs(end - now);
                 let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -1100,31 +1097,95 @@
             dashAlertsBody.innerHTML = '';
             
             let now = new Date();
-            let currentMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+            // Normalizar 'today' a la medianoche para cálculos de días exactos
+            let today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
             
-            let missingPayments = db.contracts.filter(c => c.status === 'Activo').map(c => {
+            let alerts = [];
+
+            db.contracts.filter(c => c.status === 'Activo').forEach(c => {
                 let t = db.tenants.find(x => x.id === c.tenantId);
                 let r = db.rooms.find(x => x.id === c.roomId);
-                let isPaid = db.payments.some(p => p.contractId === c.id && p.month === currentMonth && p.status === 'Pagado');
-                if(!isPaid && t && r) return { contract: c, tenant: t, room: r };
-                return null;
-            }).filter(x => x !== null);
+                if(!t || !r) return;
 
-            if(missingPayments.length === 0) {
-                dashAlertsBody.innerHTML = `<tr><td colspan="4" class="px-6 py-6 text-center text-gray-500 dark:text-gray-400"><i class="fa-solid fa-check-circle text-green-500 mr-2"></i>No hay pagos pendientes para este mes. ¡Todo al día!</td></tr>`;
+                let [startYear, startMonth, startDay] = c.startDate.split('-').map(Number);
+                
+                // REGLA: El mes en que entra (Mes 0) ya se cobró. 
+                // Buscamos a partir del mes siguiente (Mes 1 en adelante).
+                let monthOffset = 1; 
+                let maxChecks = 12; // Revisar hasta 1 año adelante/atrás para prevenir bucles infinitos
+                
+                while (monthOffset <= maxChecks) {
+                    let checkYear = startYear;
+                    let checkMonth = (startMonth - 1) + monthOffset; // Índice de mes (0-11)
+                    
+                    // Ajuste si pasa de diciembre al año siguiente
+                    checkYear += Math.floor(checkMonth / 12);
+                    checkMonth = checkMonth % 12;
+                    
+                    // Calcular el día de pago real (Ej: Si entró un 31, en Febrero se ajusta al 28)
+                    let daysInTargetMonth = new Date(checkYear, checkMonth + 1, 0).getDate();
+                    let actualDueDay = Math.min(startDay, daysInTargetMonth);
+                    
+                    let dueDate = new Date(checkYear, checkMonth, actualDueDay);
+                    
+                    let diffTime = dueDate.getTime() - today.getTime();
+                    let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    
+                    // Solo alertar si faltan 3 días, es hoy, o ya se pasó de la fecha
+                    if (diffDays <= 3) {
+                        let monthStr = `${checkYear}-${String(checkMonth+1).padStart(2,'0')}`;
+                        let isPaid = db.payments.some(p => p.contractId === c.id && p.month === monthStr && p.status === 'Pagado');
+                        
+                        if (!isPaid) {
+                            alerts.push({ contract: c, tenant: t, room: r, monthStr: monthStr, diffDays: diffDays, dueDate: dueDate });
+                            break; // Detenerse en el cobro más antiguo pendiente, no inundar la pantalla
+                        }
+                    } else {
+                        // Si diffDays es > 3, este pago está muy en el futuro (ej: faltan 20 días).
+                        // No necesitamos seguir buscando porque ya estamos al día.
+                        break;
+                    }
+                    monthOffset++;
+                }
+            });
+
+            // Actualizar la bolita roja en el Dashboard
+            document.getElementById('dash-debt').textContent = alerts.length;
+
+            if(alerts.length === 0) {
+                dashAlertsBody.innerHTML = `<tr><td colspan="4" class="px-6 py-6 text-center text-gray-500 dark:text-gray-400"><i class="fa-solid fa-check-circle text-green-500 mr-2"></i>Todos los alquileres al día. ¡Sin alertas!</td></tr>`;
             } else {
-                missingPayments.forEach(item => {
-                    let msg = `Hola ${item.tenant.name}, le saludamos de la administración del ${db.settings.buildingName}. Le recordamos amablemente que el pago de su alquiler de la Habitación ${item.room.num} correspondiente a este mes se encuentra próximo a vencer o pendiente. Agradecemos mucho su puntualidad. ¡Que tenga un excelente día!`;
+                alerts.sort((a,b) => a.diffDays - b.diffDays);
+
+                alerts.forEach(item => {
+                    let statusBadge = '';
+                    if (item.diffDays > 0) {
+                        statusBadge = `<span class="text-yellow-600 dark:text-yellow-400 font-medium text-xs bg-yellow-50 dark:bg-yellow-900/20 px-2 py-0.5 rounded border border-yellow-200 dark:border-yellow-800">En ${item.diffDays} días</span>`;
+                    } else if (item.diffDays === 0) {
+                        statusBadge = `<span class="text-orange-600 dark:text-orange-400 font-bold text-xs bg-orange-50 dark:bg-orange-900/20 px-2 py-0.5 rounded border border-orange-200 dark:border-orange-800">¡Hoy!</span>`;
+                    } else {
+                        statusBadge = `<span class="text-red-600 dark:text-red-400 font-bold text-xs bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded border border-red-200 dark:border-red-800">Hace ${Math.abs(item.diffDays)} días</span>`;
+                    }
+
+                    let dueStr = item.dueDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+                    
+                    let msg = `Hola ${item.tenant.name}, le saludamos de la administración del ${db.settings.buildingName}. Le recordamos amablemente que el pago de su alquiler (Hab. ${item.room.num}) correspondiente al mes de ${item.monthStr} vence o venció el ${dueStr}. Agradecemos mucho su puntualidad. ¡Que tenga un excelente día!`;
                     let wspUrl = item.tenant.phone ? `https://wa.me/${item.tenant.phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}` : '#';
                     
                     dashAlertsBody.innerHTML += `
                         <tr class="hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors">
                             <td class="px-6 py-4 font-bold text-gray-900 dark:text-white"><i class="fa-solid fa-door-closed mr-2 text-gray-400"></i>${item.room.num}</td>
-                            <td class="px-6 py-4">${item.tenant.name}</td>
-                            <td class="px-6 py-4 font-bold text-orange-600 dark:text-orange-400">${formatCurrency(item.room.price)}</td>
+                            <td class="px-6 py-4">
+                                <div class="font-medium">${item.tenant.name}</div>
+                                <div class="text-xs text-gray-500 mt-1">Cobro: ${item.monthStr}</div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="font-bold text-gray-900 dark:text-white mb-1">${formatCurrency(item.room.price)}</div>
+                                ${statusBadge}
+                            </td>
                             <td class="px-6 py-4 text-right">
                                 <a href="${wspUrl}" target="_blank" class="inline-flex items-center px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors shadow-sm">
-                                    <i class="fa-brands fa-whatsapp mr-1.5 text-sm"></i> Recordatorio
+                                    <i class="fa-brands fa-whatsapp mr-1.5 text-sm"></i> Cobrar
                                 </a>
                             </td>
                         </tr>
