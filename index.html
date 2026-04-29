@@ -820,7 +820,6 @@
             let localStr = localStorage.getItem(DB_KEY);
             if (localStr) { 
                 savedData = JSON.parse(localStr); 
-                // Forzar que siempre use la URL fija aunque haya guardado otra cosa antes
                 if(savedData.settings) {
                     savedData.settings.googleSheetUrl = FIXED_GOOGLE_URL;
                 }
@@ -828,6 +827,7 @@
         } catch(e) {}
 
         let db = {
+            lastUpdated: savedData.lastUpdated || 0, // MARCA DE TIEMPO INTELIGENTE
             settings: { ...defaultSettings, ...(savedData.settings || {}) },
             rooms: savedData.rooms || [],
             tenants: savedData.tenants || [],
@@ -844,11 +844,11 @@
             
             if(status === 'syncing') {
                 icon.className = "fa-solid fa-arrows-rotate fa-spin text-brand-500 mr-2 text-sm";
-                text.textContent = "Sincronizando...";
+                text.textContent = "Guardando...";
                 text.className = "text-xs font-semibold text-brand-600";
             } else if(status === 'success') {
                 icon.className = "fa-solid fa-cloud-check text-green-500 mr-2 text-sm";
-                text.textContent = "Guardado en la Nube";
+                text.textContent = "Nube Actualizada";
                 text.className = "text-xs font-semibold text-green-600";
             } else if(status === 'local') {
                 icon.className = "fa-solid fa-cloud text-gray-400 mr-2 text-sm";
@@ -856,7 +856,7 @@
                 text.className = "text-xs font-semibold text-gray-500";
             } else if(status === 'error') {
                 icon.className = "fa-solid fa-cloud-xmark text-red-500 mr-2 text-sm";
-                text.textContent = "Error de conexión";
+                text.textContent = "Esperando red...";
                 text.className = "text-xs font-semibold text-red-600";
             }
         }
@@ -865,96 +865,59 @@
             if (!db.settings.googleSheetUrl) return false;
             try {
                 updateCloudUI('syncing');
-                let response = await fetch(db.settings.googleSheetUrl);
                 
-                // Verificar si Google nos devolvió una página de login (Error de permisos muy común)
+                // Evitamos el caché para leer datos frescos
+                let fetchUrl = db.settings.googleSheetUrl + "?nocache=" + new Date().getTime();
+                let response = await fetch(fetchUrl, { cache: 'no-store' });
+                
                 const contentType = response.headers.get("content-type");
-                if (contentType && contentType.includes("text/html")) {
-                    console.error("Google devolvió HTML en lugar de datos. Permisos incorrectos.");
-                    updateCloudUI('error');
-                    Swal.fire('Faltan Permisos en Google', 'El enlace funciona, pero Google está bloqueando el acceso.\n\nDebes ir a Google Apps Script > Implementar > Gestionar implementaciones > Editar (lápiz) > Y cambiar "Quién tiene acceso" a "CUALQUIER PERSONA".', 'error');
-                    return false;
-                }
+                if (contentType && contentType.includes("text/html")) return false;
 
                 let cloudData = await response.json();
                 
-                if (cloudData && Object.keys(cloudData).length > 0 && cloudData.rooms) {
-                    db = cloudData;
-                    localStorage.setItem(DB_KEY, JSON.stringify(db)); // Forzar guardado local
-                    updateCloudUI('success');
-                    return true;
+                let localTime = db.lastUpdated || 0;
+                let cloudTime = cloudData.lastUpdated || 0;
+                
+                if (cloudData && cloudData.rooms && cloudData.rooms.length > 0) {
+                    if (cloudTime >= localTime) {
+                        // El Excel tiene los datos más recientes o iguales: Actualizamos la PC/Celular.
+                        db = cloudData;
+                        localStorage.setItem(DB_KEY, JSON.stringify(db));
+                        updateCloudUI('success');
+                        return true;
+                    } else {
+                        // La PC/Celular tiene datos más nuevos que el Excel (ej: se cerró rápido antes).
+                        // Reparamos el Excel enviándole la información local automáticamente.
+                        saveData();
+                        return true;
+                    }
                 } else {
                     updateCloudUI('success');
-                    return true; // Primera vez, la base de datos viene vacía
+                    return false;
                 }
             } catch(error) {
-                console.error("Error sincronizando de la nube", error);
                 updateCloudUI('error');
             }
             return false;
         }
 
-        async function forceCloudSync() {
-            if (!db.settings.googleSheetUrl) return Swal.fire('Aviso', 'Primero debes configurar la URL de Google Sheets en la sección de Configuración.', 'warning');
-            
-            Swal.fire({ title: 'Descargando datos...', text: 'Conectando con Google Sheets', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            let success = await syncFromCloud();
-            if(success) {
-                Swal.fire('¡Sincronizado!', 'Los datos se descargaron correctamente de la nube.', 'success');
-                setTimeout(() => location.reload(), 1500);
-            }
-        }
-
-        async function forceCloudUpload() {
-            if (!db.settings.googleSheetUrl) return Swal.fire('Aviso', 'No hay URL de Google configurada', 'warning');
-            
-            Swal.fire({ title: 'Subiendo datos...', text: 'Forzando escritura en Google Sheets', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            
-            fetch(db.settings.googleSheetUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify(db)
-            })
-            .then(response => response.text())
-            .then(result => {
-                if(result.includes("Error")) throw new Error(result);
-                updateCloudUI('success');
-                Swal.fire('¡Datos Subidos!', 'Tu información local ha sido enviada al Excel correctamente.', 'success');
-            })
-            .catch(error => {
-                console.error("Error subiendo a Google Sheets", error);
-                updateCloudUI('error');
-                Swal.fire('Error', 'No se pudo conectar a Google Sheets.', 'error');
-            });
-        }
-
         function saveData() {
-            // Siempre guardar local por si falla el internet
+            // Se actualiza la marca de tiempo a "AHORA MISMO" cada vez que creas algo
+            db.lastUpdated = new Date().getTime();
             localStorage.setItem(DB_KEY, JSON.stringify(db));
             
-            // Subir a la nube de fondo silenciosamente si hay URL configurada
             if (db.settings.googleSheetUrl) {
                 updateCloudUI('syncing');
                 fetch(db.settings.googleSheetUrl, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // Truco para evitar bloqueo de CORS
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify(db)
                 })
-                .then(response => {
-                    const contentType = response.headers.get("content-type");
-                    if (contentType && contentType.includes("text/html")) {
-                        throw new Error("Google está pidiendo inicio de sesión. Cambia el acceso a 'Cualquier persona'.");
-                    }
-                    return response.text();
-                })
+                .then(response => response.text())
                 .then(result => {
-                    if(result.includes("Error")) throw new Error(result);
-                    updateCloudUI('success');
+                    if(!result.includes("Error")) updateCloudUI('success');
                 })
-                .catch(error => {
-                    console.error("Error subiendo a Google Sheets", error);
-                    updateCloudUI('error');
-                });
+                .catch(error => updateCloudUI('error'));
             } else {
                 updateCloudUI('local');
             }
@@ -965,14 +928,16 @@
             if(sessionStorage.getItem('auth') !== 'true') {
                 document.getElementById('login-screen').classList.remove('hidden');
             } else {
-                // Si la sesión está iniciada y hay URL de la nube, intentamos descargar los datos nuevos
+                // Descarga automática en segundo plano al abrir la página
                 if (db.settings.googleSheetUrl) {
                     await syncFromCloud();
                 }
                 showMainApp();
             }
 
-            if (db.rooms.length === 0) generateDefaultRooms();
+            if (db.rooms.length === 0 && !db.settings.googleSheetUrl) {
+                generateDefaultRooms();
+            }
 
             if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                 document.documentElement.classList.add('dark');
@@ -1007,7 +972,7 @@
                     sessionStorage.setItem('auth', 'true');
                     
                     if (db.settings.googleSheetUrl) {
-                        Swal.fire({ title: 'Entrando...', text: 'Sincronizando con la nube', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                        Swal.fire({ title: 'Entrando...', text: 'Sincronizando', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                         await syncFromCloud();
                         Swal.close();
                     }
@@ -1966,8 +1931,6 @@
         // --- REPARACIÓN DE BOTONES (Exponer al entorno global) ---
         window.openModal = openModal;
         window.closeModal = closeModal;
-        window.forceCloudSync = forceCloudSync;
-        window.forceCloudUpload = forceCloudUpload;
         
         window.saveRoom = saveRoom;
         window.editRoom = editRoom;
