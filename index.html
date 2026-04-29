@@ -1,0 +1,2003 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PropManage Pro - Gestión de Edificios</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 900: '#1e3a8a' },
+                        dark: { 800: '#1e293b', 900: '#0f172a' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .view-section { display: none; animation: fadeIn 0.3s ease-in-out; }
+        .view-section.active { display: block; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .room-box { transition: all 0.2s; }
+        .room-box:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        
+        .modal { display: none; }
+        .modal.active { display: flex; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 dark:bg-dark-900 dark:text-gray-200 transition-colors duration-200">
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-gray-100 dark:bg-dark-900 transition-colors duration-200">
+        <div class="bg-white dark:bg-dark-800 p-8 rounded-2xl shadow-xl w-full max-w-md border border-gray-100 dark:border-gray-700 relative overflow-hidden">
+            
+            <!-- Logo Marca de Agua (De fondo) -->
+            <div class="absolute inset-0 opacity-[0.03] dark:opacity-10 bg-no-repeat bg-center bg-cover pointer-events-none" style="background-image: url('https://i.imgur.com/6yqwpYs.png'); transform: scale(1.2);"></div>
+
+            <div class="text-center mb-8 relative z-10">
+                <!-- Logo Principal -->
+                <img src="https://i.imgur.com/6yqwpYs.png" alt="Logo Edificio Chang" class="h-28 mx-auto mb-4 object-contain drop-shadow-md">
+                
+                <h1 class="text-xl font-bold text-gray-900 dark:text-white">Sistema de Administración</h1>
+                <p class="text-2xl font-black text-brand-600 mt-1 uppercase tracking-wide">Edificio Chang</p>
+            </div>
+            <form id="login-form" class="space-y-5 relative z-10">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Usuario</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-user text-gray-400"></i>
+                        </div>
+                        <input type="text" id="login-user" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-brand-500 focus:border-brand-500 dark:bg-dark-900 dark:border-gray-600 dark:text-white" placeholder="admin" value="admin">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-lock text-gray-400"></i>
+                        </div>
+                        <input type="password" id="login-pass" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-brand-500 focus:border-brand-500 dark:bg-dark-900 dark:border-gray-600 dark:text-white" placeholder="admin" value="admin">
+                    </div>
+                </div>
+                <button type="submit" class="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 transition-colors">
+                    Ingresar al Sistema
+                </button>
+            </form>
+            
+            <div class="mt-6 text-center relative z-10">
+                <button type="button" id="btn-emergency-reset" class="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors underline">
+                    <i class="fa-solid fa-triangle-exclamation mr-1"></i> Restablecer base de datos local
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="main-app" class="flex h-screen overflow-hidden hidden">
+        
+        <!-- SIDEBAR -->
+        <aside class="w-64 bg-white dark:bg-dark-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-colors duration-200 hidden md:flex z-20 absolute md:relative h-full" id="sidebar">
+            <div class="h-16 flex items-center px-6 border-b border-gray-200 dark:border-gray-700">
+                <i class="fa-solid fa-building text-brand-600 text-xl mr-3"></i>
+                <span class="text-sm font-bold text-gray-900 dark:text-white tracking-tight" id="sidebar-building-name">EDIFICIO RESIDENCIAL CHANG</span>
+                <button id="close-sidebar" class="md:hidden ml-auto text-gray-500"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <nav class="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+                <a href="#" data-target="dashboard" class="nav-link flex items-center px-3 py-2.5 text-sm font-medium rounded-lg bg-brand-50 text-brand-700 dark:bg-brand-900 dark:text-brand-100 group">
+                    <i class="fa-solid fa-chart-pie w-6 text-center mr-2"></i> Dashboard
+                </a>
+                <a href="#" data-target="rooms" class="nav-link flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 group transition-colors">
+                    <i class="fa-solid fa-door-closed w-6 text-center mr-2 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i> Cuartos
+                </a>
+                <a href="#" data-target="tenants" class="nav-link flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 group transition-colors">
+                    <i class="fa-solid fa-users w-6 text-center mr-2 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i> Inquilinos
+                </a>
+                <a href="#" data-target="contracts" class="nav-link flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 group transition-colors">
+                    <i class="fa-solid fa-file-signature w-6 text-center mr-2 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i> Contratos
+                </a>
+                <a href="#" data-target="payments" class="nav-link flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 group transition-colors">
+                    <i class="fa-solid fa-money-bill-wave w-6 text-center mr-2 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i> Pagos
+                </a>
+                <a href="#" data-target="owner-payments" class="nav-link flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 group transition-colors">
+                    <i class="fa-solid fa-money-bill-transfer w-6 text-center mr-2 text-gray-400 group-hover:text-gray-500 dark:group-hover:text-gray-300"></i> Liquidaciones
+                </a>
+            </nav>
+            <div class="p-4 border-t border-gray-200 dark:border-gray-700">
+                <a href="#" data-target="settings" class="nav-link flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 group transition-colors">
+                    <i class="fa-solid fa-cog w-6 text-center mr-2 text-gray-400"></i> Configuración
+                </a>
+                <a href="#" id="btn-logout" class="mt-1 flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 group transition-colors">
+                    <i class="fa-solid fa-sign-out-alt w-6 text-center mr-2"></i> Cerrar Sesión
+                </a>
+            </div>
+        </aside>
+
+        <!-- CONTENT AREA -->
+        <div class="flex-1 flex flex-col overflow-hidden bg-gray-50 dark:bg-dark-900">
+            <!-- TOP HEADER -->
+            <header class="h-16 bg-white dark:bg-dark-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 sm:px-6 z-10 transition-colors duration-200">
+                <div class="flex items-center">
+                    <button id="open-sidebar" class="md:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 mr-4">
+                        <i class="fa-solid fa-bars text-xl"></i>
+                    </button>
+                    <!-- Indicador de Sincronización en la Nube -->
+                    <div class="flex items-center bg-gray-100 dark:bg-dark-900 px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-700 mr-4">
+                        <i id="cloud-sync-icon" class="fa-solid fa-cloud text-gray-400 mr-2 text-sm transition-colors duration-300"></i>
+                        <span id="cloud-sync-text" class="text-xs font-semibold text-gray-500 dark:text-gray-400">Modo Local</span>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button onclick="forceCloudSync()" class="p-2 rounded-full text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors" title="Forzar Sincronización">
+                        <i class="fa-solid fa-rotate"></i>
+                    </button>
+                    <button id="theme-toggle" class="p-2 rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors">
+                        <i class="fa-solid fa-moon dark:hidden"></i>
+                        <i class="fa-solid fa-sun hidden dark:block"></i>
+                    </button>
+                    <div class="flex items-center space-x-2">
+                        <div class="w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-sm">
+                            AD
+                        </div>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300 hidden sm:block">Administrador</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- MAIN CONTENT -->
+            <main class="flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-6" id="main-content">
+                
+                <!-- DASHBOARD VIEW -->
+                <div id="view-dashboard" class="view-section active">
+                    <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h2>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Resumen general del edificio</p>
+                        </div>
+                        <div class="mt-3 sm:mt-0">
+                            <span class="text-sm font-medium px-3 py-1 bg-white dark:bg-dark-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm" id="current-date"></span>
+                        </div>
+                    </div>
+
+                    <!-- Stats Cards -->
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                        <div class="bg-white dark:bg-dark-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Ocupación</p>
+                                    <h3 class="text-2xl font-bold text-gray-900 dark:text-white mt-1" id="dash-occupancy">0%</h3>
+                                </div>
+                                <div class="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 dark:text-blue-400 text-xl">
+                                    <i class="fa-solid fa-chart-pie"></i>
+                                </div>
+                            </div>
+                            <div class="mt-4 text-sm text-gray-600 dark:text-gray-400 flex justify-between">
+                                <span><span class="text-green-500 font-medium" id="dash-occupied">0</span> Ocupados</span>
+                                <span><span class="text-gray-500 font-medium" id="dash-free">0</span> Libres</span>
+                            </div>
+                        </div>
+                        <div class="bg-white dark:bg-dark-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Ingresos del Mes</p>
+                                    <h3 class="text-2xl font-bold text-gray-900 dark:text-white mt-1" id="dash-income">S/ 0.00</h3>
+                                </div>
+                                <div class="w-12 h-12 rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center text-green-600 dark:text-green-400 text-xl">
+                                    <i class="fa-solid fa-sack-dollar"></i>
+                                </div>
+                            </div>
+                            <div class="mt-4 text-sm">
+                                <span class="text-green-500 font-medium"><i class="fa-solid fa-arrow-trend-up"></i> Cobrado</span>
+                            </div>
+                        </div>
+                        <div class="bg-white dark:bg-dark-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Pagos Pendientes</p>
+                                    <h3 class="text-2xl font-bold text-red-600 dark:text-red-400 mt-1" id="dash-debt">0</h3>
+                                </div>
+                                <div class="w-12 h-12 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-600 dark:text-red-400 text-xl">
+                                    <i class="fa-solid fa-triangle-exclamation"></i>
+                                </div>
+                            </div>
+                            <div class="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                                Requieren atención
+                            </div>
+                        </div>
+                        <div class="bg-white dark:bg-dark-800 rounded-xl p-5 shadow-sm border border-gray-100 dark:border-gray-700">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Contratos por Vencer</p>
+                                    <h3 class="text-2xl font-bold text-yellow-600 dark:text-yellow-400 mt-1" id="dash-expiring">0</h3>
+                                </div>
+                                <div class="w-12 h-12 rounded-full bg-yellow-50 dark:bg-yellow-900/20 flex items-center justify-center text-yellow-600 dark:text-yellow-400 text-xl">
+                                    <i class="fa-solid fa-file-circle-exclamation"></i>
+                                </div>
+                            </div>
+                            <div class="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                                En los próximos 30 días
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                        <!-- Building Map -->
+                        <div class="lg:col-span-2 bg-white dark:bg-dark-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-5">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Estado del Edificio</h3>
+                                <div class="flex gap-3 text-xs font-medium">
+                                    <span class="flex items-center"><span class="w-3 h-3 rounded-full bg-green-500 mr-1"></span> Ocupado</span>
+                                    <span class="flex items-center"><span class="w-3 h-3 rounded-full bg-gray-200 dark:bg-gray-600 mr-1"></span> Libre</span>
+                                    <span class="flex items-center"><span class="w-3 h-3 rounded-full bg-red-500 mr-1"></span> Deuda</span>
+                                    <span class="flex items-center"><span class="w-3 h-3 rounded-full bg-blue-500 mr-1"></span> Manten.</span>
+                                </div>
+                            </div>
+                            <div id="building-map" class="space-y-4">
+                                <!-- Floors generated via JS -->
+                            </div>
+                        </div>
+
+                        <!-- Chart -->
+                        <div class="bg-white dark:bg-dark-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-5">
+                            <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Ingresos (Últimos 6 meses)</h3>
+                            <div class="relative h-64 w-full">
+                                <canvas id="incomeChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ALERTAS DE PAGO -->
+                    <div class="mb-6">
+                        <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
+                            <i class="fa-solid fa-bell text-orange-500 mr-2"></i> Alertas de Cobro (Mes Actual)
+                        </h3>
+                        <div class="bg-white dark:bg-dark-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-sm text-gray-500 dark:text-gray-400">
+                                    <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-dark-900 dark:text-gray-300">
+                                        <tr>
+                                            <th class="px-6 py-3">Cuarto</th>
+                                            <th class="px-6 py-3">Inquilino</th>
+                                            <th class="px-6 py-3">Monto a Cobrar</th>
+                                            <th class="px-6 py-3 text-right">Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dash-alerts-body" class="divide-y divide-gray-200 dark:divide-gray-700">
+                                        <!-- Rendered via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ROOMS VIEW -->
+                <div id="view-rooms" class="view-section">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Gestión de Cuartos</h2>
+                        <button onclick="openModal('room-modal')" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-medium transition-colors">
+                            <i class="fa-solid fa-plus mr-1"></i> Nuevo Cuarto
+                        </button>
+                    </div>
+                    <div class="bg-white dark:bg-dark-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm text-gray-500 dark:text-gray-400">
+                                <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-dark-900 dark:text-gray-300">
+                                    <tr>
+                                        <th class="px-6 py-3">Cuarto</th>
+                                        <th class="px-6 py-3">Piso</th>
+                                        <th class="px-6 py-3">Precio</th>
+                                        <th class="px-6 py-3">Estado</th>
+                                        <th class="px-6 py-3">Inquilino Actual</th>
+                                        <th class="px-6 py-3 text-right">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rooms-table-body" class="divide-y divide-gray-200 dark:divide-gray-700">
+                                    <!-- Rendered via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TENANTS VIEW -->
+                <div id="view-tenants" class="view-section">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Directorio de Inquilinos</h2>
+                        <button onclick="openModal('tenant-modal')" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-medium transition-colors">
+                            <i class="fa-solid fa-user-plus mr-1"></i> Nuevo Inquilino
+                        </button>
+                    </div>
+                    <div class="bg-white dark:bg-dark-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm text-gray-500 dark:text-gray-400">
+                                <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-dark-900 dark:text-gray-300">
+                                    <tr>
+                                        <th class="px-6 py-3">DNI</th>
+                                        <th class="px-6 py-3">Nombre Completo</th>
+                                        <th class="px-6 py-3">Contacto</th>
+                                        <th class="px-6 py-3">Cuarto Asignado</th>
+                                        <th class="px-6 py-3 text-right">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tenants-table-body" class="divide-y divide-gray-200 dark:divide-gray-700">
+                                    <!-- Rendered via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CONTRACTS VIEW -->
+                <div id="view-contracts" class="view-section">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Contratos</h2>
+                        <button onclick="openModal('contract-modal')" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-medium transition-colors">
+                            <i class="fa-solid fa-file-signature mr-1"></i> Generar Contrato
+                        </button>
+                    </div>
+                    <div class="bg-white dark:bg-dark-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm text-gray-500 dark:text-gray-400">
+                                <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-dark-900 dark:text-gray-300">
+                                    <tr>
+                                        <th class="px-6 py-3">ID</th>
+                                        <th class="px-6 py-3">Inquilino</th>
+                                        <th class="px-6 py-3">Cuarto</th>
+                                        <th class="px-6 py-3">Vigencia</th>
+                                        <th class="px-6 py-3">Garantía</th>
+                                        <th class="px-6 py-3 text-right">PDF / WSP</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="contracts-table-body" class="divide-y divide-gray-200 dark:divide-gray-700">
+                                    <!-- Rendered via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PAYMENTS VIEW -->
+                <div id="view-payments" class="view-section">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Control de Pagos</h2>
+                        <button onclick="openModal('payment-modal')" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-medium transition-colors">
+                            <i class="fa-solid fa-hand-holding-dollar mr-1"></i> Registrar Pago
+                        </button>
+                    </div>
+                    <div class="bg-white dark:bg-dark-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm text-gray-500 dark:text-gray-400">
+                                <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-dark-900 dark:text-gray-300">
+                                    <tr>
+                                        <th class="px-6 py-3">Fecha</th>
+                                        <th class="px-6 py-3">Inquilino (Cuarto)</th>
+                                        <th class="px-6 py-3">Mes/Año Correspondiente</th>
+                                        <th class="px-6 py-3">Monto</th>
+                                        <th class="px-6 py-3">Estado</th>
+                                        <th class="px-6 py-3 text-right">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="payments-table-body" class="divide-y divide-gray-200 dark:divide-gray-700">
+                                    <!-- Rendered via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OWNER PAYMENTS VIEW (LIQUIDACIONES) -->
+                <div id="view-owner-payments" class="view-section">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                        <div>
+                            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Liquidaciones al Dueño</h2>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Control de transferencias e historial.</p>
+                        </div>
+                        <div class="flex items-center gap-3 w-full md:w-auto">
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <i class="fa-regular fa-calendar text-gray-500"></i>
+                                </div>
+                                <input type="month" id="liq-month-filter" onchange="renderOwnerPayments()" class="pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-brand-500 focus:border-brand-500 dark:bg-dark-900 dark:border-gray-600 dark:text-white text-sm bg-white cursor-pointer shadow-sm">
+                            </div>
+                            <button onclick="openModal('owner-payment-modal')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-sm text-sm font-medium transition-colors whitespace-nowrap">
+                                <i class="fa-solid fa-money-bill-transfer mr-1"></i> Nueva
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- HISTORIAL RECIENTE -->
+                    <div class="mb-6">
+                        <h3 class="text-xs font-bold text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wider">Historial de Meses Anteriores</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4" id="liq-history-cards">
+                            <!-- JS populate -->
+                        </div>
+                    </div>
+
+                    <!-- DASHBOARD DE LIQUIDACIONES DEL MES SELECCIONADO -->
+                    <div class="bg-white dark:bg-dark-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 mb-6">
+                        <h3 class="text-lg font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 pb-3 mb-4">
+                            Detalle del mes: <span id="liq-selected-month-text" class="text-indigo-600 dark:text-indigo-400 capitalize"></span>
+                        </h3>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div class="bg-gray-50 dark:bg-dark-900 rounded-lg p-4 border border-gray-100 dark:border-gray-700">
+                                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Cobrado a Inquilinos</p>
+                                <h3 class="text-2xl font-bold text-gray-900 dark:text-white mt-1" id="liq-collected">S/ 0.00</h3>
+                            </div>
+                            <div class="bg-gray-50 dark:bg-dark-900 rounded-lg p-4 border border-gray-100 dark:border-gray-700">
+                                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Transferido al Dueño</p>
+                                <h3 class="text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-1" id="liq-transferred">S/ 0.00</h3>
+                            </div>
+                            <div class="bg-gray-50 dark:bg-dark-900 rounded-lg p-4 border border-gray-100 dark:border-gray-700">
+                                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Saldo por Entregar</p>
+                                <h3 class="text-2xl font-bold text-green-600 dark:text-green-400 mt-1" id="liq-balance">S/ 0.00</h3>
+                            </div>
+                        </div>
+
+                        <!-- Barra de progreso -->
+                        <div class="mb-2 mt-4">
+                            <div class="flex justify-between mb-1">
+                                <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Progreso de entrega al propietario</span>
+                                <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400" id="liq-progress-text">0%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                                <div class="bg-indigo-500 h-2.5 rounded-full transition-all duration-500" id="liq-progress-bar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white dark:bg-dark-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                        <div class="p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-dark-900">
+                            <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300">Vouchers enviados en <span id="liq-table-month-text" class="lowercase font-bold">este mes</span></h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm text-gray-500 dark:text-gray-400">
+                                <thead class="text-xs text-gray-700 uppercase bg-white dark:bg-dark-800 dark:text-gray-300">
+                                    <tr>
+                                        <th class="px-6 py-3">Fecha</th>
+                                        <th class="px-6 py-3">Concepto / Periodo</th>
+                                        <th class="px-6 py-3">Monto</th>
+                                        <th class="px-6 py-3">Método / Ref.</th>
+                                        <th class="px-6 py-3 text-right">Voucher / Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="owner-payments-table-body" class="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-dark-800">
+                                    <!-- Rendered via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SETTINGS VIEW -->
+                <div id="view-settings" class="view-section">
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Configuración del Sistema</h2>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-white dark:bg-dark-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                            <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 border-b pb-2 border-gray-100 dark:border-gray-700">Sincronización en la Nube (Google Sheets)</h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Para guardar tu base de datos directamente en Google Sheets y poder abrir tu sistema desde cualquier celular o PC sin perder datos.</p>
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Conexión a la Nube (Fija)</label>
+                                    <div class="w-full px-3 py-2 border border-green-300 bg-green-50 rounded-lg text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400 text-sm flex items-center">
+                                        <i class="fa-solid fa-link mr-2"></i> Sistema enlazado a Google Sheets exitosamente.
+                                    </div>
+                                    <input type="hidden" id="set-google-url" value="https://script.google.com/macros/s/AKfycbxryP8QjcxIRzLVt_66A00T8RYThLbf4A6uyrkZWaM302wCpcOPkeOVixCFTqpOd1aqCA/exec">
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <button type="button" onclick="forceCloudSync()" class="w-full bg-blue-600 text-white py-2 rounded-lg shadow-sm hover:bg-blue-700 transition-colors text-sm font-medium">
+                                        <i class="fa-solid fa-cloud-arrow-down mr-1"></i> Bajar de Nube
+                                    </button>
+                                    <button type="button" onclick="forceCloudUpload()" class="w-full bg-green-600 text-white py-2 rounded-lg shadow-sm hover:bg-green-700 transition-colors text-sm font-medium">
+                                        <i class="fa-solid fa-cloud-arrow-up mr-1"></i> Subir a Nube
+                                    </button>
+                                </div>
+                                <p class="text-[11px] text-gray-500 leading-tight"><b>Nota:</b> Usa "Bajar" cuando abras el sistema en un equipo nuevo. Usa "Subir" para forzar que tus datos actuales reemplacen el Excel.</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-white dark:bg-dark-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                            <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 border-b pb-2 border-gray-100 dark:border-gray-700">Datos Generales</h3>
+                            <form id="settings-form" class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre del Edificio</label>
+                                    <input type="text" id="set-building" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-brand-500 focus:border-brand-500 dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL del Logo (Opcional - Formato PNG/JPG)</label>
+                                    <input type="url" id="set-logo" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-brand-500 focus:border-brand-500 dark:bg-dark-900 dark:border-gray-600 dark:text-white" placeholder="https://mi-dominio.com/logo.png">
+                                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre del Administrador(a)</label>
+                                        <input type="text" id="set-owner" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-brand-500 focus:border-brand-500 dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">DNI Administrador(a)</label>
+                                        <input type="text" id="set-owner-dni" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-brand-500 focus:border-brand-500 dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre del Propietario</label>
+                                        <input type="text" id="set-real-owner" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-brand-500 focus:border-brand-500 dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">WhatsApp Propietario</label>
+                                        <input type="text" id="set-owner-phone" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-brand-500 focus:border-brand-500 dark:bg-dark-900 dark:border-gray-600 dark:text-white" placeholder="+51...">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Moneda</label>
+                                        <input type="text" id="set-currency" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-brand-500 focus:border-brand-500 dark:bg-dark-900 dark:border-gray-600 dark:text-white" placeholder="S/">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Teléfono</label>
+                                        <input type="text" id="set-phone" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-brand-500 focus:border-brand-500 dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Texto Base Contrato</label>
+                                    <textarea id="set-contract-text" rows="5" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-brand-500 focus:border-brand-500 dark:bg-dark-900 dark:border-gray-600 dark:text-white"></textarea>
+                                </div>
+                                <button type="button" onclick="saveSettings()" class="w-full bg-brand-600 text-white py-2 rounded-lg shadow-sm hover:bg-brand-700 transition-colors">Guardar Configuración</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- MODALS -->
+    <!-- Room Modal -->
+    <div id="room-modal" class="modal fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50">
+        <div class="bg-white dark:bg-dark-800 rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div class="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white" id="room-modal-title">Nuevo Cuarto</h3>
+                <button onclick="closeModal('room-modal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div class="p-4 space-y-4">
+                <input type="hidden" id="room-id">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">N° Cuarto</label>
+                        <input type="text" id="room-num" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Piso</label>
+                        <select id="room-floor" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                            <option value="1">Piso 1</option><option value="2">Piso 2</option><option value="3">Piso 3</option><option value="4">Piso 4</option><option value="5">Piso 5</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Precio Mensual</label>
+                        <input type="number" id="room-price" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Estado</label>
+                        <select id="room-status" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                            <option value="Libre">Libre</option><option value="Ocupado">Ocupado</option><option value="Mantenimiento">Mantenimiento</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Servicios / Observaciones</label>
+                    <textarea id="room-obs" rows="2" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white"></textarea>
+                </div>
+                <button onclick="saveRoom()" class="w-full bg-brand-600 text-white py-2 rounded-lg font-medium hover:bg-brand-700">Guardar Cuarto</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tenant Modal -->
+    <div id="tenant-modal" class="modal fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50">
+        <div class="bg-white dark:bg-dark-800 rounded-xl shadow-xl w-full max-w-2xl mx-4">
+            <div class="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white" id="tenant-modal-title">Nuevo Inquilino</h3>
+                <button onclick="closeModal('tenant-modal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 h-96 overflow-y-auto">
+                <input type="hidden" id="tenant-id">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">DNI / Documento</label>
+                    <input type="text" id="tenant-dni" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Nombres Completos</label>
+                    <input type="text" id="tenant-name" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">WhatsApp / Teléfono</label>
+                    <input type="text" id="tenant-phone" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white" placeholder="Ej: +51999888777">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Correo</label>
+                    <input type="email" id="tenant-email" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Ocupación / Trabajo</label>
+                    <input type="text" id="tenant-job" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Contacto Emergencia</label>
+                    <input type="text" id="tenant-emergency" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white" placeholder="Nombre y Teléfono">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Observaciones</label>
+                    <textarea id="tenant-obs" rows="2" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white"></textarea>
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-200 dark:border-gray-700">
+                <button onclick="saveTenant()" class="w-full bg-brand-600 text-white py-2 rounded-lg font-medium hover:bg-brand-700">Guardar Inquilino</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contract Modal -->
+    <div id="contract-modal" class="modal fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50">
+        <div class="bg-white dark:bg-dark-800 rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div class="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Generar Contrato</h3>
+                <button onclick="closeModal('contract-modal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Inquilino</label>
+                    <select id="contract-tenant" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white"></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Cuarto</label>
+                    <select id="contract-room" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white"></select>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Monto Garantía</label>
+                        <input type="number" id="contract-guarantee" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Fecha Inicio</label>
+                        <input type="date" id="contract-start" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                    </div>
+                </div>
+                <button onclick="generateContract()" class="w-full bg-brand-600 text-white py-2 rounded-lg font-medium hover:bg-brand-700">Crear y Activar Contrato (Indefinido)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div id="payment-modal" class="modal fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50">
+        <div class="bg-white dark:bg-dark-800 rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div class="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Registrar Pago</h3>
+                <button onclick="closeModal('payment-modal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Contrato / Inquilino</label>
+                    <select id="pay-contract" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white" onchange="autoFillPayment()"></select>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Mes a Pagar</label>
+                        <input type="month" id="pay-month" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Días a cobrar (Mes=30)</label>
+                        <input type="number" id="pay-days" value="30" oninput="calculatePartialPayment()" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Monto S/</label>
+                        <input type="number" step="0.01" id="pay-amount" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Método de Pago</label>
+                        <select id="pay-method" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                            <option>Efectivo</option><option>Transferencia</option><option>Yape/Plin</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Observación (Opcional)</label>
+                    <input type="text" id="pay-obs" placeholder="Ej: Pago parcial por 15 días" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                </div>
+                <button onclick="savePayment()" class="w-full bg-green-600 text-white py-2 rounded-lg font-medium hover:bg-green-700">Confirmar Pago</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Owner Payment Modal -->
+    <div id="owner-payment-modal" class="modal fixed inset-0 z-50 items-center justify-center bg-black bg-opacity-50">
+        <div class="bg-white dark:bg-dark-800 rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div class="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Liquidación al Propietario</h3>
+                <button onclick="closeModal('owner-payment-modal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div class="p-4 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Fecha de Pago</label>
+                        <input type="date" id="pay-owner-date" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Monto Entregado</label>
+                        <input type="number" id="pay-owner-amount" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Periodo / Concepto</label>
+                    <input type="text" id="pay-owner-period" placeholder="Ej: Liquidación mes de Abril 2026" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Método</label>
+                        <select id="pay-owner-method" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                            <option>Transferencia</option><option>Efectivo</option><option>Yape/Plin</option><option>Cheque</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">N° Operación/Ref.</label>
+                        <input type="text" id="pay-owner-ref" class="mt-1 w-full px-3 py-2 border rounded-lg dark:bg-dark-900 dark:border-gray-600 dark:text-white">
+                    </div>
+                </div>
+                <button onclick="saveOwnerPayment()" class="w-full bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700">Registrar Liquidación</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- 1. CONFIGURACIÓN Y ESTADO INICIAL ---
+        const DB_KEY = 'propmanage_data';
+        let chartInstance = null;
+        
+        // URL FIJA DE GOOGLE SHEETS
+        const FIXED_GOOGLE_URL = "https://script.google.com/macros/s/AKfycbxryP8QjcxIRzLVt_66A00T8RYThLbf4A6uyrkZWaM302wCpcOPkeOVixCFTqpOd1aqCA/exec";
+        
+        // Datos por defecto puros
+        const defaultSettings = {
+            buildingName: "EDIFICIO RESIDENCIAL CHANG",
+            logoUrl: "https://i.imgur.com/6yqwpYs.png",
+            ownerName: "Karin Lizeth Gómez Barrueta",
+            ownerDni: "42890721",
+            realOwnerName: "Ali Martínez Chang",
+            ownerPhone: "+51917309964",
+            currency: "S/",
+            phone: "+51989982916",
+            googleSheetUrl: FIXED_GOOGLE_URL,
+            contractText: "1. RENTA Y PAGOS: La pensión mensual pactada se abonará estrictamente por adelantado. El retraso recurrente es causal de resolución.\n\n2. GARANTÍA Y CONSERVACIÓN (S/ 50.00): La habitación se entrega en óptimas condiciones de uso y limpieza. Al desocupar, deberá devolverse tal cual fue entregada. Cualquier daño, deterioro, mancha en las paredes o falta de limpieza será descontada de la garantía.\n\n3. CONVIVENCIA Y DESCANSO: El edificio aloja a profesionales, primando el derecho al descanso. Queda terminantemente prohibido generar ruidos molestos, realizar reuniones sociales o usar dispositivos a alto volumen.\n\n4. MASCOTAS: Por higiene y tranquilidad mutua, no se admite el ingreso ni tenencia de animales de ninguna especie.\n\n5. VISITAS Y RESTRICCIONES: El cuarto es de uso exclusivo del titular. Se prohíbe subarrendar o permitir que terceros pernocten (duerman) en la habitación sin autorización previa de la administración.\n\nEl incumplimiento de cualquiera de estas normativas facultará a la administración a resolver el contrato de manera inmediata, sin lugar a reclamo."
+        };
+
+        let savedData = {};
+        try {
+            let localStr = localStorage.getItem(DB_KEY);
+            if (localStr) { 
+                savedData = JSON.parse(localStr); 
+                // Forzar que siempre use la URL fija aunque haya guardado otra cosa antes
+                if(savedData.settings) {
+                    savedData.settings.googleSheetUrl = FIXED_GOOGLE_URL;
+                }
+            }
+        } catch(e) {}
+
+        let db = {
+            settings: { ...defaultSettings, ...(savedData.settings || {}) },
+            rooms: savedData.rooms || [],
+            tenants: savedData.tenants || [],
+            contracts: savedData.contracts || [],
+            payments: savedData.payments || [],
+            ownerPayments: savedData.ownerPayments || []
+        };
+
+        // --- FUNCIONES DE SINCRONIZACIÓN CON GOOGLE SHEETS ---
+        function updateCloudUI(status) {
+            let icon = document.getElementById('cloud-sync-icon');
+            let text = document.getElementById('cloud-sync-text');
+            if(!icon || !text) return;
+            
+            if(status === 'syncing') {
+                icon.className = "fa-solid fa-arrows-rotate fa-spin text-brand-500 mr-2 text-sm";
+                text.textContent = "Sincronizando...";
+                text.className = "text-xs font-semibold text-brand-600";
+            } else if(status === 'success') {
+                icon.className = "fa-solid fa-cloud-check text-green-500 mr-2 text-sm";
+                text.textContent = "Guardado en la Nube";
+                text.className = "text-xs font-semibold text-green-600";
+            } else if(status === 'local') {
+                icon.className = "fa-solid fa-cloud text-gray-400 mr-2 text-sm";
+                text.textContent = "Modo Local";
+                text.className = "text-xs font-semibold text-gray-500";
+            } else if(status === 'error') {
+                icon.className = "fa-solid fa-cloud-xmark text-red-500 mr-2 text-sm";
+                text.textContent = "Error de conexión";
+                text.className = "text-xs font-semibold text-red-600";
+            }
+        }
+
+        async function syncFromCloud() {
+            if (!db.settings.googleSheetUrl) return false;
+            try {
+                updateCloudUI('syncing');
+                let response = await fetch(db.settings.googleSheetUrl);
+                
+                // Verificar si Google nos devolvió una página de login (Error de permisos muy común)
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.includes("text/html")) {
+                    console.error("Google devolvió HTML en lugar de datos. Permisos incorrectos.");
+                    updateCloudUI('error');
+                    Swal.fire('Faltan Permisos en Google', 'El enlace funciona, pero Google está bloqueando el acceso.\n\nDebes ir a Google Apps Script > Implementar > Gestionar implementaciones > Editar (lápiz) > Y cambiar "Quién tiene acceso" a "CUALQUIER PERSONA".', 'error');
+                    return false;
+                }
+
+                let cloudData = await response.json();
+                
+                if (cloudData && Object.keys(cloudData).length > 0 && cloudData.rooms) {
+                    db = cloudData;
+                    localStorage.setItem(DB_KEY, JSON.stringify(db)); // Forzar guardado local
+                    updateCloudUI('success');
+                    return true;
+                } else {
+                    updateCloudUI('success');
+                    return true; // Primera vez, la base de datos viene vacía
+                }
+            } catch(error) {
+                console.error("Error sincronizando de la nube", error);
+                updateCloudUI('error');
+            }
+            return false;
+        }
+
+        async function forceCloudSync() {
+            if (!db.settings.googleSheetUrl) return Swal.fire('Aviso', 'Primero debes configurar la URL de Google Sheets en la sección de Configuración.', 'warning');
+            
+            Swal.fire({ title: 'Descargando datos...', text: 'Conectando con Google Sheets', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            let success = await syncFromCloud();
+            if(success) {
+                Swal.fire('¡Sincronizado!', 'Los datos se descargaron correctamente de la nube.', 'success');
+                setTimeout(() => location.reload(), 1500);
+            }
+        }
+
+        async function forceCloudUpload() {
+            if (!db.settings.googleSheetUrl) return Swal.fire('Aviso', 'No hay URL de Google configurada', 'warning');
+            
+            Swal.fire({ title: 'Subiendo datos...', text: 'Forzando escritura en Google Sheets', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            
+            fetch(db.settings.googleSheetUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(db)
+            })
+            .then(response => response.text())
+            .then(result => {
+                if(result.includes("Error")) throw new Error(result);
+                updateCloudUI('success');
+                Swal.fire('¡Datos Subidos!', 'Tu información local ha sido enviada al Excel correctamente.', 'success');
+            })
+            .catch(error => {
+                console.error("Error subiendo a Google Sheets", error);
+                updateCloudUI('error');
+                Swal.fire('Error', 'No se pudo conectar a Google Sheets.', 'error');
+            });
+        }
+
+        function saveData() {
+            // Siempre guardar local por si falla el internet
+            localStorage.setItem(DB_KEY, JSON.stringify(db));
+            
+            // Subir a la nube de fondo silenciosamente si hay URL configurada
+            if (db.settings.googleSheetUrl) {
+                updateCloudUI('syncing');
+                fetch(db.settings.googleSheetUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // Truco para evitar bloqueo de CORS
+                    body: JSON.stringify(db)
+                })
+                .then(response => {
+                    const contentType = response.headers.get("content-type");
+                    if (contentType && contentType.includes("text/html")) {
+                        throw new Error("Google está pidiendo inicio de sesión. Cambia el acceso a 'Cualquier persona'.");
+                    }
+                    return response.text();
+                })
+                .then(result => {
+                    if(result.includes("Error")) throw new Error(result);
+                    updateCloudUI('success');
+                })
+                .catch(error => {
+                    console.error("Error subiendo a Google Sheets", error);
+                    updateCloudUI('error');
+                });
+            } else {
+                updateCloudUI('local');
+            }
+        }
+
+        // --- 2. INICIALIZACIÓN ---
+        async function initApp() {
+            if(sessionStorage.getItem('auth') !== 'true') {
+                document.getElementById('login-screen').classList.remove('hidden');
+            } else {
+                // Si la sesión está iniciada y hay URL de la nube, intentamos descargar los datos nuevos
+                if (db.settings.googleSheetUrl) {
+                    await syncFromCloud();
+                }
+                showMainApp();
+            }
+
+            if (db.rooms.length === 0) generateDefaultRooms();
+
+            if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+            
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('current-date').textContent = new Date().toLocaleDateString('es-ES', options);
+            
+            setupEventListeners();
+            loadSettingsForm();
+            
+            if(!db.settings.googleSheetUrl) updateCloudUI('local');
+        }
+
+        function generateDefaultRooms() {
+            for(let p = 1; p <= 5; p++) {
+                for(let c = 1; c <= 10; c++) {
+                    let num = `${p}${c.toString().padStart(2, '0')}`;
+                    db.rooms.push({ id: generateId(), num: num, floor: p, price: 350, status: 'Libre', obs: '' });
+                }
+            }
+            saveData();
+        }
+
+        // --- 3. EVENT LISTENERS & UI ---
+        function setupEventListeners() {
+            document.getElementById('login-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                let user = document.getElementById('login-user').value;
+                let pass = document.getElementById('login-pass').value;
+                if(user === 'admin' && pass === 'lv123456') {
+                    sessionStorage.setItem('auth', 'true');
+                    
+                    if (db.settings.googleSheetUrl) {
+                        Swal.fire({ title: 'Entrando...', text: 'Sincronizando con la nube', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                        await syncFromCloud();
+                        Swal.close();
+                    }
+                    showMainApp();
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Error', text: 'Credenciales incorrectas' });
+                }
+            });
+
+            document.getElementById('btn-emergency-reset').addEventListener('click', () => {
+                Swal.fire({
+                    title: '¿Restablecer todo el sistema?',
+                    text: "Esto borrará todos los datos de tu computadora (si no los guardaste en la nube se perderán).",
+                    icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'Sí, borrar todo'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        localStorage.removeItem(DB_KEY);
+                        sessionStorage.removeItem('auth');
+                        location.reload();
+                    }
+                });
+            });
+
+            document.getElementById('btn-logout').addEventListener('click', () => {
+                sessionStorage.removeItem('auth');
+                location.reload();
+            });
+
+            document.querySelectorAll('.nav-link[data-target]').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+                    document.querySelectorAll('.nav-link').forEach(l => {
+                        l.classList.remove('bg-brand-50', 'text-brand-700', 'dark:bg-brand-900', 'dark:text-brand-100');
+                        l.classList.add('text-gray-700', 'dark:text-gray-300');
+                    });
+                    
+                    const target = link.getAttribute('data-target');
+                    document.getElementById(`view-${target}`).classList.add('active');
+                    link.classList.add('bg-brand-50', 'text-brand-700', 'dark:bg-brand-900', 'dark:text-brand-100');
+                    link.classList.remove('text-gray-700', 'dark:text-gray-300');
+                    
+                    if(target === 'dashboard') renderDashboard();
+                    if(target === 'rooms') renderRooms();
+                    if(target === 'tenants') renderTenants();
+                    if(target === 'contracts') renderContracts();
+                    if(target === 'payments') renderPayments();
+                    if(target === 'owner-payments') renderOwnerPayments();
+                    if(target === 'settings') loadSettingsForm();
+                    
+                    if(window.innerWidth < 768) document.getElementById('sidebar').classList.add('hidden');
+                });
+            });
+
+            document.getElementById('open-sidebar').addEventListener('click', () => document.getElementById('sidebar').classList.remove('hidden'));
+            document.getElementById('close-sidebar').addEventListener('click', () => document.getElementById('sidebar').classList.add('hidden'));
+
+            document.getElementById('theme-toggle').addEventListener('click', () => {
+                document.documentElement.classList.toggle('dark');
+                if(document.documentElement.classList.contains('dark')) localStorage.setItem('theme', 'dark');
+                else localStorage.setItem('theme', 'light');
+                if(chartInstance) updateChartTheme();
+            });
+        }
+
+        function showMainApp() {
+            try {
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('main-app').classList.remove('hidden');
+                document.getElementById('sidebar-building-name').textContent = db.settings.buildingName;
+                renderDashboard();
+            } catch(error) {
+                console.error(error);
+                Swal.fire('Error del Sistema', 'Los datos están corruptos. Presiona el botón de restablecer.', 'error');
+                document.getElementById('login-screen').classList.remove('hidden');
+                document.getElementById('main-app').classList.add('hidden');
+                sessionStorage.removeItem('auth');
+            }
+        }
+
+        function openModal(id) { document.getElementById(id).classList.add('active'); }
+        function closeModal(id) { 
+            document.getElementById(id).classList.remove('active'); 
+            document.querySelectorAll(`#${id} input:not([type=hidden]), #${id} textarea`).forEach(el => el.value = '');
+        }
+        function generateId() { return Math.random().toString(36).substr(2, 9); }
+        function formatCurrency(amount) { return `${db.settings.currency} ${parseFloat(amount).toFixed(2)}`; }
+
+        // --- 4. DASHBOARD ---
+        function renderDashboard() {
+            let total = db.rooms.length;
+            let occupied = db.rooms.filter(r => r.status === 'Ocupado').length;
+            let free = db.rooms.filter(r => r.status === 'Libre').length;
+            
+            document.getElementById('dash-occupancy').textContent = total ? Math.round((occupied/total)*100) + '%' : '0%';
+            document.getElementById('dash-occupied').textContent = occupied;
+            document.getElementById('dash-free').textContent = free;
+
+            let now = new Date();
+            let currentMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+            let income = db.payments.filter(p => p.month === currentMonth && p.status === 'Pagado')
+                                    .reduce((sum, p) => sum + parseFloat(p.amount), 0);
+            document.getElementById('dash-income').textContent = formatCurrency(income);
+
+            let debtCount = db.payments.filter(p => p.status === 'Pendiente').length;
+            document.getElementById('dash-debt').textContent = debtCount;
+
+            let expiringCount = db.contracts.filter(c => {
+                if(c.status !== 'Activo') return false;
+                let end = new Date(c.endDate);
+                let diffTime = Math.abs(end - now);
+                let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                return diffDays <= 30 && end >= now;
+            }).length;
+            document.getElementById('dash-expiring').textContent = expiringCount;
+
+            renderBuildingMap();
+            renderChart();
+            renderAlerts();
+        }
+
+        function renderAlerts() {
+            const dashAlertsBody = document.getElementById('dash-alerts-body');
+            if (!dashAlertsBody) return;
+            dashAlertsBody.innerHTML = '';
+            
+            let now = new Date();
+            let currentMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+            
+            let missingPayments = db.contracts.filter(c => c.status === 'Activo').map(c => {
+                let t = db.tenants.find(x => x.id === c.tenantId);
+                let r = db.rooms.find(x => x.id === c.roomId);
+                let isPaid = db.payments.some(p => p.contractId === c.id && p.month === currentMonth && p.status === 'Pagado');
+                if(!isPaid && t && r) return { contract: c, tenant: t, room: r };
+                return null;
+            }).filter(x => x !== null);
+
+            if(missingPayments.length === 0) {
+                dashAlertsBody.innerHTML = `<tr><td colspan="4" class="px-6 py-6 text-center text-gray-500 dark:text-gray-400"><i class="fa-solid fa-check-circle text-green-500 mr-2"></i>No hay pagos pendientes para este mes. ¡Todo al día!</td></tr>`;
+            } else {
+                missingPayments.forEach(item => {
+                    let msg = `Hola ${item.tenant.name}, le saludamos de la administración del ${db.settings.buildingName}. Le recordamos amablemente que el pago de su alquiler de la Habitación ${item.room.num} correspondiente a este mes se encuentra próximo a vencer o pendiente. Agradecemos mucho su puntualidad. ¡Que tenga un excelente día!`;
+                    let wspUrl = item.tenant.phone ? `https://wa.me/${item.tenant.phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}` : '#';
+                    
+                    dashAlertsBody.innerHTML += `
+                        <tr class="hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-colors">
+                            <td class="px-6 py-4 font-bold text-gray-900 dark:text-white"><i class="fa-solid fa-door-closed mr-2 text-gray-400"></i>${item.room.num}</td>
+                            <td class="px-6 py-4">${item.tenant.name}</td>
+                            <td class="px-6 py-4 font-bold text-orange-600 dark:text-orange-400">${formatCurrency(item.room.price)}</td>
+                            <td class="px-6 py-4 text-right">
+                                <a href="${wspUrl}" target="_blank" class="inline-flex items-center px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors shadow-sm">
+                                    <i class="fa-brands fa-whatsapp mr-1.5 text-sm"></i> Recordatorio
+                                </a>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+        }
+
+        function renderBuildingMap() {
+            const mapContainer = document.getElementById('building-map');
+            mapContainer.innerHTML = '';
+            
+            let floors = {1:[], 2:[], 3:[], 4:[], 5:[]};
+            db.rooms.forEach(r => {
+                if(floors[r.floor]) floors[r.floor].push(r);
+                else floors[r.floor] = [r]; 
+            });
+
+            const getColor = (r) => {
+                if(r.status === 'Mantenimiento') return 'bg-blue-500';
+                if(r.status === 'Libre') return 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400';
+                
+                let contract = db.contracts.find(c => c.roomId === r.id && c.status === 'Activo');
+                if(contract) {
+                    let hasDebt = db.payments.some(p => p.contractId === contract.id && p.status === 'Pendiente');
+                    if(hasDebt) return 'bg-red-500 text-white shadow-red-500/50 shadow-lg';
+                }
+                return 'bg-green-500 text-white';
+            };
+
+            for(let i = 5; i >= 1; i--) {
+                if(!floors[i] || floors[i].length === 0) continue;
+                floors[i].sort((a,b) => a.num.localeCompare(b.num));
+                
+                let floorDiv = document.createElement('div');
+                floorDiv.className = "flex flex-col md:flex-row md:items-center gap-3";
+                
+                let floorLabel = document.createElement('div');
+                floorLabel.className = "w-16 text-sm font-bold text-gray-500 dark:text-gray-400";
+                floorLabel.textContent = `Piso ${i}`;
+                floorDiv.appendChild(floorLabel);
+                
+                let gridDiv = document.createElement('div');
+                gridDiv.className = "flex-1 grid grid-cols-5 sm:grid-cols-10 gap-2";
+                
+                floors[i].forEach(room => {
+                    let box = document.createElement('div');
+                    box.className = `room-box flex flex-col items-center justify-center p-2 rounded-lg text-xs font-bold cursor-pointer transition-colors ${getColor(room)}`;
+                    box.innerHTML = `<span>${room.num}</span>`;
+                    box.title = `Cuarto ${room.num} - ${room.status}`;
+                    gridDiv.appendChild(box);
+                });
+                
+                floorDiv.appendChild(gridDiv);
+                mapContainer.appendChild(floorDiv);
+            }
+        }
+
+        function renderChart() {
+            const ctx = document.getElementById('incomeChart').getContext('2d');
+            
+            let months = [];
+            let data = [];
+            let now = new Date();
+            for(let i=5; i>=0; i--) {
+                let d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                let mStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+                months.push(d.toLocaleDateString('es-ES', { month: 'short' }).toUpperCase());
+                
+                let sum = db.payments.filter(p => p.month === mStr && p.status === 'Pagado')
+                                     .reduce((acc, p) => acc + parseFloat(p.amount), 0);
+                data.push(sum);
+            }
+
+            let isDark = document.documentElement.classList.contains('dark');
+            let textColor = isDark ? '#cbd5e1' : '#64748b';
+            let gridColor = isDark ? '#334155' : '#e2e8f0';
+
+            if(chartInstance) chartInstance.destroy();
+            
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: 'Ingresos',
+                        data: data,
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { ticks: { color: textColor }, grid: { color: gridColor } },
+                        x: { ticks: { color: textColor }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+        function updateChartTheme() { renderChart(); }
+
+        // --- 5. MÓDULO CUARTOS ---
+        function renderRooms() {
+            const tbody = document.getElementById('rooms-table-body');
+            tbody.innerHTML = '';
+            
+            let sortedRooms = [...db.rooms].sort((a,b) => a.num.localeCompare(b.num));
+            
+            sortedRooms.forEach(room => {
+                let tenantName = '-';
+                if(room.status === 'Ocupado') {
+                    let contract = db.contracts.find(c => c.roomId === room.id && c.status === 'Activo');
+                    if(contract) {
+                        let tenant = db.tenants.find(t => t.id === contract.tenantId);
+                        if(tenant) tenantName = tenant.name;
+                    }
+                }
+
+                let statusBadge = room.status === 'Libre' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' :
+                                  room.status === 'Ocupado' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                                  'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50 dark:hover:bg-dark-800 transition-colors">
+                        <td class="px-6 py-4 font-bold text-gray-900 dark:text-white"><i class="fa-solid fa-door-open mr-2 text-brand-500"></i>${room.num}</td>
+                        <td class="px-6 py-4">Piso ${room.floor}</td>
+                        <td class="px-6 py-4">${formatCurrency(room.price)}</td>
+                        <td class="px-6 py-4"><span class="px-2.5 py-1 text-xs rounded-full font-medium ${statusBadge}">${room.status}</span></td>
+                        <td class="px-6 py-4">${tenantName}</td>
+                        <td class="px-6 py-4 text-right">
+                            <button onclick="editRoom('${room.id}')" class="text-blue-500 hover:text-blue-700 mr-3" title="Editar"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deleteRoom('${room.id}')" class="text-red-500 hover:text-red-700" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function saveRoom() {
+            let id = document.getElementById('room-id').value;
+            let num = document.getElementById('room-num').value;
+            let floor = document.getElementById('room-floor').value;
+            let price = document.getElementById('room-price').value;
+            let status = document.getElementById('room-status').value;
+            let obs = document.getElementById('room-obs').value;
+
+            if(!num || !price) return Swal.fire('Error', 'Complete los campos obligatorios', 'error');
+
+            if(id) {
+                let r = db.rooms.find(x => x.id === id);
+                r.num = num; r.floor = floor; r.price = price; r.status = status; r.obs = obs;
+                Swal.fire('Actualizado', 'Cuarto actualizado', 'success');
+            } else {
+                if(db.rooms.some(x => x.num === num)) return Swal.fire('Error', 'El número ya existe', 'error');
+                db.rooms.push({ id: generateId(), num, floor, price, status, obs });
+                Swal.fire('Guardado', 'Cuarto creado', 'success');
+            }
+            saveData(); closeModal('room-modal'); renderRooms();
+        }
+
+        function editRoom(id) {
+            let r = db.rooms.find(x => x.id === id);
+            document.getElementById('room-modal-title').textContent = 'Editar Cuarto';
+            document.getElementById('room-id').value = r.id;
+            document.getElementById('room-num').value = r.num;
+            document.getElementById('room-floor').value = r.floor;
+            document.getElementById('room-price').value = r.price;
+            document.getElementById('room-status').value = r.status;
+            document.getElementById('room-obs').value = r.obs;
+            openModal('room-modal');
+        }
+
+        function deleteRoom(id) {
+            if(db.contracts.some(c => c.roomId === id && c.status === 'Activo')) {
+                return Swal.fire('Error', 'Cuarto ocupado actualmente', 'error');
+            }
+            Swal.fire({
+                title: '¿Eliminar cuarto?', text: "Esta acción no se puede deshacer", icon: 'warning',
+                showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'Sí, eliminar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    db.rooms = db.rooms.filter(x => x.id !== id);
+                    saveData(); renderRooms();
+                    Swal.fire('Eliminado', 'Cuarto eliminado.', 'success');
+                }
+            });
+        }
+
+        // --- 6. MÓDULO INQUILINOS ---
+        function renderTenants() {
+            const tbody = document.getElementById('tenants-table-body');
+            tbody.innerHTML = '';
+            
+            let now = new Date();
+
+            db.tenants.forEach(t => {
+                let activeContract = db.contracts.find(c => c.tenantId === t.id && c.status === 'Activo');
+                let assignedRoomHTML = '<span class="text-gray-400">Ninguno</span>';
+                
+                if (activeContract) {
+                    let room = db.rooms.find(r => r.id === activeContract.roomId);
+                    
+                    let start = new Date(activeContract.startDate);
+                    let months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+                    if (now.getDate() < start.getDate()) months--; 
+                    months = Math.max(0, months); 
+                    
+                    let timeText = months === 0 ? 'Menos de 1 mes' : `${months} mes(es)`;
+                    
+                    assignedRoomHTML = `
+                        <div class="font-bold text-gray-900 dark:text-white">Cuarto ${room ? room.num : '?'}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-1" title="Fecha de entrada">
+                            <i class="fa-regular fa-calendar-check mr-1"></i> Ingresó: ${activeContract.startDate}
+                        </div>
+                        <div class="inline-block mt-1.5 px-2 py-0.5 bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-[11px] font-semibold rounded-md border border-brand-200 dark:border-brand-800">
+                            <i class="fa-solid fa-clock-rotate-left mr-1"></i> Lleva ${timeText}
+                        </div>
+                    `;
+                }
+
+                let wspLink = t.phone ? `<a href="https://wa.me/${t.phone.replace(/\D/g,'')}?text=Hola%20${encodeURIComponent(t.name)},%20le%20escribimos%20de%20${encodeURIComponent(db.settings.buildingName)}" target="_blank" class="text-green-500 hover:text-green-600 mr-2" title="WhatsApp"><i class="fa-brands fa-whatsapp text-lg"></i></a>` : '';
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50 dark:hover:bg-dark-800 transition-colors">
+                        <td class="px-6 py-4">${t.dni}</td>
+                        <td class="px-6 py-4 font-medium text-gray-900 dark:text-white">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 rounded-full bg-brand-100 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400 flex items-center justify-center mr-3 font-bold shrink-0">
+                                    ${t.name.charAt(0).toUpperCase()}
+                                </div>
+                                <span>${t.name}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center">
+                                ${wspLink} <span>${t.phone || '-'}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">${assignedRoomHTML}</td>
+                        <td class="px-6 py-4 text-right">
+                            <button onclick="editTenant('${t.id}')" class="text-blue-500 hover:text-blue-700 mr-3" title="Editar"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deleteTenant('${t.id}')" class="text-red-500 hover:text-red-700" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function saveTenant() {
+            let id = document.getElementById('tenant-id').value;
+            let dni = document.getElementById('tenant-dni').value;
+            let name = document.getElementById('tenant-name').value;
+            
+            if(!dni || !name) return Swal.fire('Error', 'DNI y Nombre son obligatorios', 'error');
+
+            let tenantData = {
+                id: id || generateId(),
+                dni, name,
+                phone: document.getElementById('tenant-phone').value,
+                email: document.getElementById('tenant-email').value,
+                job: document.getElementById('tenant-job').value,
+                emergency: document.getElementById('tenant-emergency').value,
+                obs: document.getElementById('tenant-obs').value
+            };
+
+            if(id) {
+                let idx = db.tenants.findIndex(x => x.id === id);
+                if(db.tenants.some(x => x.dni === dni && x.id !== id)) return Swal.fire('Error', 'Este DNI ya está registrado', 'error');
+                db.tenants[idx] = tenantData;
+                Swal.fire('Actualizado', 'Datos guardados', 'success');
+            } else {
+                if(db.tenants.some(x => x.dni === dni)) return Swal.fire('Error', 'Este DNI ya está registrado', 'error');
+                db.tenants.push(tenantData);
+                Swal.fire('Guardado', 'Inquilino registrado', 'success');
+            }
+            saveData(); closeModal('tenant-modal'); renderTenants();
+        }
+
+        function editTenant(id) {
+            let t = db.tenants.find(x => x.id === id);
+            document.getElementById('tenant-modal-title').textContent = 'Editar Inquilino';
+            document.getElementById('tenant-id').value = t.id;
+            document.getElementById('tenant-dni').value = t.dni;
+            document.getElementById('tenant-name').value = t.name;
+            document.getElementById('tenant-phone').value = t.phone;
+            document.getElementById('tenant-email').value = t.email;
+            document.getElementById('tenant-job').value = t.job;
+            document.getElementById('tenant-emergency').value = t.emergency;
+            document.getElementById('tenant-obs').value = t.obs;
+            openModal('tenant-modal');
+        }
+
+        function deleteTenant(id) {
+            if(db.contracts.some(c => c.tenantId === id && c.status === 'Activo')) {
+                return Swal.fire('Error', 'El inquilino tiene un contrato activo', 'error');
+            }
+            Swal.fire({
+                title: '¿Eliminar inquilino?', text: "Se perderán sus datos.", icon: 'warning',
+                showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Sí, eliminar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    db.tenants = db.tenants.filter(x => x.id !== id);
+                    saveData(); renderTenants();
+                    Swal.fire('Eliminado', 'Inquilino borrado.', 'success');
+                }
+            });
+        }
+
+        // --- 7. MÓDULO CONTRATOS ---
+        function renderContracts() {
+            const tbody = document.getElementById('contracts-table-body');
+            tbody.innerHTML = '';
+            
+            let selectTenant = document.getElementById('contract-tenant');
+            selectTenant.innerHTML = '<option value="">Seleccione Inquilino...</option>';
+            db.tenants.forEach(t => selectTenant.innerHTML += `<option value="${t.id}">${t.name} (${t.dni})</option>`);
+            
+            let selectRoom = document.getElementById('contract-room');
+            selectRoom.innerHTML = '<option value="">Seleccione Cuarto Libre...</option>';
+            db.rooms.filter(r => r.status === 'Libre').forEach(r => selectRoom.innerHTML += `<option value="${r.id}">Cuarto ${r.num} - ${formatCurrency(r.price)}</option>`);
+
+            db.contracts.forEach(c => {
+                let tenant = db.tenants.find(t => t.id === c.tenantId);
+                let room = db.rooms.find(r => r.id === c.roomId);
+                if(!tenant || !room) return; 
+                
+                let badge = c.status === 'Activo' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+                
+                let wspText = encodeURIComponent(`Hola ${tenant.name}, le enviamos el contrato de alquiler del Cuarto ${room.num} en ${db.settings.buildingName}. Saludos.`);
+                let wspUrl = tenant.phone ? `https://wa.me/${tenant.phone.replace(/\D/g,'')}?text=${wspText}` : '#';
+
+                let periodText = c.endDate === 'Indefinido' ? `Desde ${c.startDate} <br><span class="text-[10px] text-gray-500">(Indefinido)</span>` : `${c.startDate} al ${c.endDate}`;
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50 dark:hover:bg-dark-800 transition-colors">
+                        <td class="px-6 py-4 font-mono text-xs">#${c.id.toUpperCase()}</td>
+                        <td class="px-6 py-4 font-medium">${tenant.name}</td>
+                        <td class="px-6 py-4">Cuarto ${room.num}</td>
+                        <td class="px-6 py-4 text-xs">${periodText} <br><span class="px-2 py-0.5 rounded-full ${badge} mt-1 inline-block">${c.status}</span></td>
+                        <td class="px-6 py-4">${formatCurrency(c.guarantee)}</td>
+                        <td class="px-6 py-4 text-right space-x-2">
+                            <button onclick="generatePDF('${c.id}')" class="text-red-500 hover:text-red-700" title="Descargar PDF"><i class="fa-solid fa-file-pdf text-lg"></i></button>
+                            <a href="${wspUrl}" target="_blank" class="text-green-500 hover:text-green-700" title="Enviar por WhatsApp"><i class="fa-brands fa-whatsapp text-lg"></i></a>
+                            ${c.status === 'Activo' ? `<button onclick="terminateContract('${c.id}')" class="text-gray-400 hover:text-gray-600" title="Finalizar Contrato"><i class="fa-solid fa-ban"></i></button>` : ''}
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function generateContract() {
+            let tenantId = document.getElementById('contract-tenant').value;
+            let roomId = document.getElementById('contract-room').value;
+            let guarantee = document.getElementById('contract-guarantee').value;
+            let startDate = document.getElementById('contract-start').value;
+
+            if(!tenantId || !roomId || !startDate) return Swal.fire('Error', 'Complete los datos obligatorios', 'error');
+
+            let endDate = 'Indefinido';
+
+            let contract = {
+                id: generateId(),
+                tenantId, roomId, guarantee, startDate, endDate, status: 'Activo',
+                createdAt: new Date().toISOString()
+            };
+
+            db.contracts.push(contract);
+            
+            let rIdx = db.rooms.findIndex(r => r.id === roomId);
+            if(rIdx > -1) db.rooms[rIdx].status = 'Ocupado';
+
+            let monthStr = startDate.substring(0,7);
+            db.payments.push({
+                id: generateId(), contractId: contract.id, month: monthStr, amount: db.rooms[rIdx].price,
+                status: 'Pendiente', method: '', date: '', obs: 'Pago inicial generado por contrato'
+            });
+
+            saveData(); closeModal('contract-modal'); renderContracts();
+            Swal.fire('Éxito', 'Contrato generado', 'success');
+        }
+
+        function terminateContract(id) {
+            Swal.fire({
+                title: '¿Finalizar contrato?', text: "El cuarto pasará a estado Libre.", icon: 'warning',
+                showCancelButton: true, confirmButtonColor: '#3085d6', confirmButtonText: 'Sí, finalizar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    let c = db.contracts.find(x => x.id === id);
+                    if(c) {
+                        c.status = 'Finalizado';
+                        let r = db.rooms.find(x => x.id === c.roomId);
+                        if(r) r.status = 'Libre';
+                        saveData(); renderContracts();
+                        Swal.fire('Listo', 'Contrato finalizado', 'success');
+                    }
+                }
+            });
+        }
+
+        function getBase64ImageFromUrl(imageUrl) {
+            return new Promise((resolve, reject) => {
+                var img = new Image();
+                img.crossOrigin = "Anonymous";
+                img.onload = function() {
+                    var canvas = document.createElement("canvas");
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    var ctx = canvas.getContext("2d");
+                    ctx.drawImage(img, 0, 0);
+                    var dataURL = canvas.toDataURL("image/png");
+                    resolve(dataURL);
+                };
+                img.onerror = reject;
+                img.src = imageUrl;
+            });
+        }
+
+        async function generatePDF(contractId) {
+            Swal.fire({ title: 'Generando PDF...', text: 'Por favor espere', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            let c = db.contracts.find(x => x.id === contractId);
+            let t = db.tenants.find(x => x.id === c.tenantId);
+            let r = db.rooms.find(x => x.id === c.roomId);
+
+            let imgData = null;
+            if (db.settings.logoUrl) {
+                try { imgData = await getBase64ImageFromUrl(db.settings.logoUrl); } catch(e) {}
+            }
+
+            if (imgData) doc.addImage(imgData, 'PNG', 20, 12, 20, 20);
+            let textStartX = imgData ? 45 : 20;
+
+            doc.setFont("helvetica", "bold"); doc.setFontSize(20); doc.setTextColor(30, 58, 138);
+            doc.text(db.settings.buildingName, textStartX, 22);
+            
+            doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(100, 100, 100);
+            doc.text(`Administradora: ${db.settings.ownerName}  |  Contacto: ${db.settings.phone || 'No registrado'}`, textStartX, 28);
+
+            doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.5); doc.line(20, 36, 190, 36);
+
+            doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(0, 0, 0);
+            doc.text("CONTRATO DE ARRENDAMIENTO DE HABITACIÓN", 105, 47, null, null, "center");
+            
+            doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(40, 40, 40);
+
+            let plazoText = c.endDate === 'Indefinido' ? `Indefinido (A partir del ${c.startDate})` : `Del ${c.startDate} al ${c.endDate}`;
+
+            let body = `Conste el presente contrato de arrendamiento que celebran de una parte:\n\n`+
+                       `ADMINISTRADORA: ${db.settings.ownerName}, identificada con DNI N° ${db.settings.ownerDni || 'N/A'}.\n`+
+                       `INQUILINO: ${t.name}, identificado con DNI N° ${t.dni}, Cel: ${t.phone || 'N/A'}.\n\n`+
+                       `CONDICIONES DEL ALQUILER:\n`+
+                       `  • Inmueble: Habitación N° ${r.num} (Piso ${r.floor}).\n`+
+                       `  • Plazo: ${plazoText}.\n`+
+                       `  • Renta: ${formatCurrency(r.price)} mensuales (por adelantado).\n`+
+                       `  • Garantía: ${formatCurrency(c.guarantee)}.\n\n`+
+                       `CLÁUSULAS REGLAMENTARIAS:\n\n`+
+                       `${db.settings.contractText}`;
+
+            let splitText = doc.splitTextToSize(body, 170);
+            doc.text(splitText, 20, 58);
+
+            let finalY = 245; 
+
+            doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.3);
+            
+            doc.line(30, finalY, 80, finalY);
+            doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+            doc.text("Firma ADMINISTRADOR(A)", 55, finalY + 5, null, null, "center");
+            doc.setFont("helvetica", "normal");
+            doc.text(db.settings.ownerName, 55, finalY + 10, null, null, "center");
+            
+            doc.line(130, finalY, 180, finalY);
+            doc.setFont("helvetica", "bold");
+            doc.text("Firma INQUILINO", 155, finalY + 5, null, null, "center");
+            doc.setFont("helvetica", "normal");
+            doc.text(t.name, 155, finalY + 10, null, null, "center");
+
+            doc.setFont("helvetica", "italic");
+            doc.setFontSize(10);
+            doc.text(`Firmado en señal de conformidad el ${new Date().toLocaleDateString('es-ES')}.`, 105, finalY + 25, null, null, "center");
+
+            doc.setFontSize(8); doc.setTextColor(150, 150, 150);
+            doc.text(`Generado por el Sistema Edificio Chang`, 105, 285, null, null, "center");
+
+            Swal.close();
+            doc.save(`Contrato_${t.name.replace(/\s+/g, '_')}_C${r.num}.pdf`);
+        }
+
+        // --- 8. MÓDULO PAGOS ---
+        function renderPayments() {
+            const tbody = document.getElementById('payments-table-body');
+            tbody.innerHTML = '';
+            
+            let selectContract = document.getElementById('pay-contract');
+            selectContract.innerHTML = '<option value="">Seleccione Inquilino/Cuarto...</option>';
+            db.contracts.filter(c => c.status === 'Activo').forEach(c => {
+                let t = db.tenants.find(x => x.id === c.tenantId);
+                let r = db.rooms.find(x => x.id === c.roomId);
+                if(t && r) selectContract.innerHTML += `<option value="${c.id}" data-amount="${r.price}">${t.name} - C${r.num}</option>`;
+            });
+
+            let sortedPayments = [...db.payments].sort((a,b) => b.month.localeCompare(a.month));
+
+            sortedPayments.forEach(p => {
+                let c = db.contracts.find(x => x.id === p.contractId);
+                if(!c) return;
+                let t = db.tenants.find(x => x.id === c.tenantId);
+                let r = db.rooms.find(x => x.id === c.roomId);
+                
+                let badge = p.status === 'Pagado' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                let obsHtml = p.obs ? `<div class="text-[10px] text-gray-400 mt-1"><i class="fa-solid fa-circle-info"></i> ${p.obs}</div>` : '';
+                
+                let wspUrl = '#';
+                if(t && t.phone && p.status === 'Pagado') {
+                    let msg = `Hola ${t.name}, confirmamos la recepción de su pago por ${formatCurrency(p.amount)} correspondiente al mes de ${p.month}. Gracias.`;
+                    wspUrl = `https://wa.me/${t.phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`;
+                }
+
+                let wspReminderUrl = '#';
+                if(t && t.phone && p.status === 'Pendiente') {
+                    let msg = `Hola ${t.name}, le saludamos de la administración del ${db.settings.buildingName}. Le recordamos amablemente que el pago de su alquiler (Hab. ${r.num}) correspondiente al mes de ${p.month} se encuentra próximo o pendiente por el monto de ${formatCurrency(p.amount)}. Agradecemos su pronta atención. ¡Saludos!`;
+                    wspReminderUrl = `https://wa.me/${t.phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`;
+                }
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50 dark:hover:bg-dark-800 transition-colors">
+                        <td class="px-6 py-4">${p.date || '-'}</td>
+                        <td class="px-6 py-4 font-medium">${t ? t.name : '?'} <span class="text-xs text-gray-500">(C${r?r.num:'?'})</span></td>
+                        <td class="px-6 py-4 font-mono text-sm">${p.month} ${obsHtml}</td>
+                        <td class="px-6 py-4 font-bold text-gray-900 dark:text-white">${formatCurrency(p.amount)}</td>
+                        <td class="px-6 py-4"><span class="px-2.5 py-1 text-xs rounded-full font-medium ${badge}">${p.status}</span></td>
+                        <td class="px-6 py-4 text-right">
+                            ${p.status === 'Pendiente' ? 
+                                `<a href="${wspReminderUrl}" target="_blank" class="text-orange-500 hover:text-orange-600 mr-3" title="Enviar Recordatorio Wsp"><i class="fa-brands fa-whatsapp text-lg"></i></a>
+                                 <button onclick="markAsPaid('${p.id}')" class="text-green-600 hover:text-green-800 mr-2" title="Marcar Pagado"><i class="fa-solid fa-check-circle"></i></button>` : 
+                                `<a href="${wspUrl}" target="_blank" class="text-blue-500 hover:text-blue-700" title="Enviar Recibo Wsp"><i class="fa-solid fa-receipt"></i></a>`
+                            }
+                            <button onclick="deletePayment('${p.id}')" class="text-red-500 hover:text-red-700 ml-2" title="Eliminar Registro"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function autoFillPayment() {
+            let select = document.getElementById('pay-contract');
+            let option = select.options[select.selectedIndex];
+            if(option && option.value) {
+                document.getElementById('pay-amount').value = option.getAttribute('data-amount');
+                document.getElementById('pay-days').value = 30; // Reset a 30 dias
+                let now = new Date();
+                document.getElementById('pay-month').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+            }
+        }
+
+        function calculatePartialPayment() {
+            let select = document.getElementById('pay-contract');
+            let option = select.options[select.selectedIndex];
+            if(option && option.value) {
+                let basePrice = parseFloat(option.getAttribute('data-amount'));
+                let days = parseInt(document.getElementById('pay-days').value) || 0;
+                let partialAmount = (basePrice / 30) * days;
+                document.getElementById('pay-amount').value = partialAmount.toFixed(2);
+                
+                if(days < 30) {
+                    document.getElementById('pay-obs').value = `Pago parcial por ${days} días`;
+                } else {
+                    document.getElementById('pay-obs').value = '';
+                }
+            }
+        }
+
+        function savePayment() {
+            let contractId = document.getElementById('pay-contract').value;
+            let month = document.getElementById('pay-month').value;
+            let amount = document.getElementById('pay-amount').value;
+            let method = document.getElementById('pay-method').value;
+            let obs = document.getElementById('pay-obs').value;
+
+            if(!contractId || !month || !amount) return Swal.fire('Error', 'Complete los datos obligatorios', 'error');
+
+            if(db.payments.some(p => p.contractId === contractId && p.month === month && p.status === 'Pagado')) {
+                return Swal.fire('Aviso', 'Este mes ya registra un pago completado', 'warning');
+            }
+
+            db.payments.push({
+                id: generateId(), contractId, month, amount, method, obs,
+                status: 'Pagado', date: new Date().toISOString().split('T')[0]
+            });
+
+            db.payments = db.payments.filter(p => !(p.contractId === contractId && p.month === month && p.status === 'Pendiente'));
+
+            saveData(); closeModal('payment-modal'); renderPayments(); renderDashboard();
+            Swal.fire('Registrado', 'Pago registrado exitosamente', 'success');
+        }
+
+        function markAsPaid(id) {
+            let p = db.payments.find(x => x.id === id);
+            if(p) {
+                p.status = 'Pagado'; p.date = new Date().toISOString().split('T')[0]; p.method = 'Efectivo'; 
+                saveData(); renderPayments();
+                Swal.fire('Actualizado', 'Pago completado', 'success');
+            }
+        }
+
+        function deletePayment(id) {
+            Swal.fire({
+                title: '¿Eliminar registro?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Sí, eliminar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    db.payments = db.payments.filter(x => x.id !== id);
+                    saveData(); renderPayments();
+                }
+            });
+        }
+
+        // --- 9. MÓDULO LIQUIDACIONES AL DUEÑO ---
+        function renderOwnerPayments() {
+            const tbody = document.getElementById('owner-payments-table-body');
+            const filterInput = document.getElementById('liq-month-filter');
+            
+            let now = new Date();
+            let defaultMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+            
+            if (!filterInput.value) { filterInput.value = defaultMonth; }
+            
+            let selectedMonthStr = filterInput.value; 
+            
+            let [sYear, sMonth] = selectedMonthStr.split('-');
+            let dateObj = new Date(sYear, parseInt(sMonth)-1, 1);
+            let displayMonthName = dateObj.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+            document.getElementById('liq-selected-month-text').textContent = displayMonthName;
+            document.getElementById('liq-table-month-text').textContent = displayMonthName;
+
+            let totalCollected = db.payments
+                .filter(p => p.month === selectedMonthStr && p.status === 'Pagado')
+                .reduce((sum, p) => sum + parseFloat(p.amount), 0);
+
+            let totalTransferred = db.ownerPayments
+                .filter(p => p.date.startsWith(selectedMonthStr))
+                .reduce((sum, p) => sum + parseFloat(p.amount), 0);
+
+            let balance = totalCollected - totalTransferred;
+            if (balance < 0) balance = 0; 
+
+            document.getElementById('liq-collected').textContent = formatCurrency(totalCollected);
+            document.getElementById('liq-transferred').textContent = formatCurrency(totalTransferred);
+            document.getElementById('liq-balance').textContent = formatCurrency(balance);
+
+            let progress = totalCollected > 0 ? Math.min(Math.round((totalTransferred / totalCollected) * 100), 100) : 0;
+            document.getElementById('liq-progress-text').textContent = progress + '%';
+            document.getElementById('liq-progress-bar').style.width = progress + '%';
+
+            const historyContainer = document.getElementById('liq-history-cards');
+            historyContainer.innerHTML = '';
+            for(let i=1; i<=3; i++) {
+                let d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                let mStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+                let monthName = d.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+                
+                let mCollected = db.payments.filter(p => p.month === mStr && p.status === 'Pagado').reduce((s, p) => s + parseFloat(p.amount), 0);
+                let mTransferred = db.ownerPayments.filter(p => p.date.startsWith(mStr)).reduce((s, p) => s + parseFloat(p.amount), 0);
+                let mColor = mTransferred >= mCollected && mCollected > 0 ? 'text-green-600 dark:text-green-400' : 'text-orange-500 dark:text-orange-400';
+                
+                historyContainer.innerHTML += `
+                    <div class="bg-white dark:bg-dark-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-between hover:shadow-md transition-shadow">
+                        <p class="text-sm font-bold text-gray-800 dark:text-gray-200 capitalize mb-3"><i class="fa-regular fa-calendar-days mr-1 text-gray-400"></i> ${monthName}</p>
+                        <div class="space-y-1.5">
+                            <div class="flex justify-between text-xs">
+                                <span class="text-gray-500">Cobrado a Inquilinos:</span>
+                                <span class="font-medium text-gray-900 dark:text-white">${formatCurrency(mCollected)}</span>
+                            </div>
+                            <div class="flex justify-between text-xs border-t border-gray-100 dark:border-gray-700 pt-1.5">
+                                <span class="text-gray-500">Entregado al Dueño:</span>
+                                <span class="font-bold ${mColor}">${formatCurrency(mTransferred)}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            tbody.innerHTML = '';
+            let sortedOwnerPayments = db.ownerPayments
+                .filter(p => p.date.startsWith(selectedMonthStr))
+                .sort((a,b) => new Date(b.date) - new Date(a.date));
+
+            if (sortedOwnerPayments.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No hay transferencias registradas en este mes.</td></tr>`;
+            } else {
+                sortedOwnerPayments.forEach(p => {
+                    let ownerName = db.settings.realOwnerName || 'Ali Martínez Chang';
+                    let adminName = db.settings.ownerName || 'Administración';
+                    let wspText = encodeURIComponent(`Hola ${ownerName},\nTe envío el detalle de la liquidación:\n\n🏢 *Edificio:* ${db.settings.buildingName}\n📅 *Fecha:* ${p.date}\n📝 *Concepto:* ${p.period}\n💰 *Monto:* ${formatCurrency(p.amount)}\n🏦 *Método:* ${p.method}\n🧾 *Ref:* ${p.ref || 'N/A'}\n\nAtte. ${adminName}`);
+                    let wspUrl = db.settings.ownerPhone ? `https://wa.me/${db.settings.ownerPhone.replace(/\D/g,'')}?text=${wspText}` : `https://wa.me/?text=${wspText}`;
+
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-gray-50 dark:hover:bg-dark-700 transition-colors">
+                            <td class="px-6 py-4 font-medium">${p.date}</td>
+                            <td class="px-6 py-4">${p.period}</td>
+                            <td class="px-6 py-4 font-bold text-gray-900 dark:text-white">${formatCurrency(p.amount)}</td>
+                            <td class="px-6 py-4 text-xs"><span class="block text-gray-800 dark:text-gray-200">${p.method}</span><span class="text-gray-400">Ref: ${p.ref || 'N/A'}</span></td>
+                            <td class="px-6 py-4 text-right">
+                                <a href="${wspUrl}" target="_blank" class="text-green-500 hover:text-green-700 mr-3" title="Enviar Voucher por WhatsApp"><i class="fa-brands fa-whatsapp text-lg"></i></a>
+                                <button onclick="deleteOwnerPayment('${p.id}')" class="text-red-500 hover:text-red-700" title="Eliminar Registro"><i class="fa-solid fa-trash"></i></button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+            
+            document.getElementById('pay-owner-date').value = new Date().toISOString().split('T')[0];
+        }
+
+        function saveOwnerPayment() {
+            let date = document.getElementById('pay-owner-date').value;
+            let amount = document.getElementById('pay-owner-amount').value;
+            let period = document.getElementById('pay-owner-period').value;
+            let method = document.getElementById('pay-owner-method').value;
+            let ref = document.getElementById('pay-owner-ref').value;
+
+            if(!date || !amount || !period) return Swal.fire('Error', 'Fecha, Monto y Periodo son obligatorios', 'error');
+
+            db.ownerPayments.push({ id: generateId(), date, amount, period, method, ref });
+
+            saveData(); closeModal('owner-payment-modal'); renderOwnerPayments();
+            Swal.fire('Registrado', 'Liquidación guardada exitosamente', 'success');
+        }
+
+        function deleteOwnerPayment(id) {
+            Swal.fire({
+                title: '¿Eliminar liquidación?', text: "Se borrará del historial del propietario.", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Sí, eliminar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    db.ownerPayments = db.ownerPayments.filter(x => x.id !== id);
+                    saveData(); renderOwnerPayments();
+                }
+            });
+        }
+
+        // --- 10. CONFIGURACIÓN Y BACKUP ---
+        function loadSettingsForm() {
+            document.getElementById('set-building').value = db.settings.buildingName || '';
+            document.getElementById('set-logo').value = db.settings.logoUrl || '';
+            document.getElementById('set-owner').value = db.settings.ownerName || '';
+            document.getElementById('set-owner-dni').value = db.settings.ownerDni || '';
+            document.getElementById('set-real-owner').value = db.settings.realOwnerName || '';
+            document.getElementById('set-owner-phone').value = db.settings.ownerPhone || '';
+            document.getElementById('set-currency').value = db.settings.currency || 'S/';
+            document.getElementById('set-phone').value = db.settings.phone || '';
+            document.getElementById('set-contract-text').value = db.settings.contractText || '';
+            document.getElementById('set-google-url').value = FIXED_GOOGLE_URL;
+        }
+
+        function saveSettings() {
+            db.settings = {
+                buildingName: document.getElementById('set-building').value,
+                logoUrl: document.getElementById('set-logo').value,
+                ownerName: document.getElementById('set-owner').value,
+                ownerDni: document.getElementById('set-owner-dni').value,
+                realOwnerName: document.getElementById('set-real-owner').value,
+                ownerPhone: document.getElementById('set-owner-phone').value,
+                currency: document.getElementById('set-currency').value,
+                phone: document.getElementById('set-phone').value,
+                contractText: document.getElementById('set-contract-text').value,
+                googleSheetUrl: FIXED_GOOGLE_URL
+            };
+            saveData();
+            document.getElementById('sidebar-building-name').textContent = db.settings.buildingName;
+            Swal.fire('Guardado', 'Configuración actualizada', 'success');
+        }
+
+        function exportBackup() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            dlAnchorElem.setAttribute("download", `propmanage_backup_${new Date().toISOString().split('T')[0]}.json`);
+            dlAnchorElem.click();
+        }
+
+        function importBackup(event) {
+            const file = event.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedDb = JSON.parse(e.target.result);
+                    if(importedDb && importedDb.settings && importedDb.rooms) {
+                        db = importedDb; saveData();
+                        Swal.fire('Restaurado', 'La base de datos fue restaurada exitosamente', 'success').then(() => { location.reload(); });
+                    } else {
+                        Swal.fire('Error', 'Archivo JSON no válido', 'error');
+                    }
+                } catch(error) { Swal.fire('Error', 'No se pudo leer el archivo JSON', 'error'); }
+            };
+            reader.readAsText(file);
+        }
+
+        // --- REPARACIÓN DE BOTONES (Exponer al entorno global) ---
+        window.openModal = openModal;
+        window.closeModal = closeModal;
+        window.forceCloudSync = forceCloudSync;
+        window.forceCloudUpload = forceCloudUpload;
+        
+        window.saveRoom = saveRoom;
+        window.editRoom = editRoom;
+        window.deleteRoom = deleteRoom;
+        
+        window.saveTenant = saveTenant;
+        window.editTenant = editTenant;
+        window.deleteTenant = deleteTenant;
+        
+        window.generateContract = generateContract;
+        window.terminateContract = terminateContract;
+        window.generatePDF = generatePDF;
+        
+        window.autoFillPayment = autoFillPayment;
+        window.calculatePartialPayment = calculatePartialPayment;
+        window.savePayment = savePayment;
+        window.markAsPaid = markAsPaid;
+        window.deletePayment = deletePayment;
+        
+        window.renderOwnerPayments = renderOwnerPayments;
+        window.saveOwnerPayment = saveOwnerPayment;
+        window.deleteOwnerPayment = deleteOwnerPayment;
+        
+        window.saveSettings = saveSettings;
+        window.exportBackup = exportBackup;
+        window.importBackup = importBackup;
+
+        // Arrancar la APP
+        window.onload = initApp;
+
+    </script>
+</body>
+</html>
