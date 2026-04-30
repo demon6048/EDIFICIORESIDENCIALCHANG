@@ -789,11 +789,7 @@
     </div>
 
     <!-- JAVASCRIPT LOGIC -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
+    <script>
         // --- 1. CONFIGURACIÓN Y ESTADO INICIAL ---
         const DB_KEY = 'propmanage_data';
         let chartInstance = null;
@@ -1097,10 +1093,10 @@
             dashAlertsBody.innerHTML = '';
             
             let now = new Date();
-            // Normalizar 'today' a la medianoche para cálculos de días exactos
             let today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
             
             let alerts = [];
+            let addedNewPending = false;
 
             db.contracts.filter(c => c.status === 'Activo').forEach(c => {
                 let t = db.tenants.find(x => x.id === c.tenantId);
@@ -1109,47 +1105,54 @@
 
                 let [startYear, startMonth, startDay] = c.startDate.split('-').map(Number);
                 
-                // REGLA: El mes en que entra (Mes 0) ya se cobró. 
-                // Buscamos a partir del mes siguiente (Mes 1 en adelante).
-                let monthOffset = 1; 
-                let maxChecks = 12; // Revisar hasta 1 año adelante/atrás para prevenir bucles infinitos
-                
-                while (monthOffset <= maxChecks) {
-                    let checkYear = startYear;
-                    let checkMonth = (startMonth - 1) + monthOffset; // Índice de mes (0-11)
+                // NUEVA LÓGICA: Solo revisamos una ventana corta (desde hace 2 meses hasta 1 mes adelante)
+                // Así evitamos escanear y revivir deudas de hace un año.
+                for (let offset = -2; offset <= 1; offset++) {
+                    let checkDate = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+                    let checkYear = checkDate.getFullYear();
+                    let checkMonth = checkDate.getMonth(); // 0-11
                     
-                    // Ajuste si pasa de diciembre al año siguiente
-                    checkYear += Math.floor(checkMonth / 12);
-                    checkMonth = checkMonth % 12;
+                    // Ignorar si es antes de que iniciara el contrato
+                    if (checkYear < startYear || (checkYear === startYear && checkMonth < (startMonth - 1))) {
+                        continue;
+                    }
                     
-                    // Calcular el día de pago real (Ej: Si entró un 31, en Febrero se ajusta al 28)
                     let daysInTargetMonth = new Date(checkYear, checkMonth + 1, 0).getDate();
                     let actualDueDay = Math.min(startDay, daysInTargetMonth);
-                    
                     let dueDate = new Date(checkYear, checkMonth, actualDueDay);
                     
                     let diffTime = dueDate.getTime() - today.getTime();
                     let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                     
-                    // Solo alertar si faltan 3 días, es hoy, o ya se pasó de la fecha
                     if (diffDays <= 3) {
                         let monthStr = `${checkYear}-${String(checkMonth+1).padStart(2,'0')}`;
-                        let isPaid = db.payments.some(p => p.contractId === c.id && p.month === monthStr && p.status === 'Pagado');
+                        
+                        // IMPORTANTE: Si ya está 'Pagado' o 'Anulado' (Borrado), no mostramos la alerta
+                        let isPaid = db.payments.some(p => p.contractId === c.id && p.month === monthStr && (p.status === 'Pagado' || p.status === 'Anulado'));
                         
                         if (!isPaid) {
                             alerts.push({ contract: c, tenant: t, room: r, monthStr: monthStr, diffDays: diffDays, dueDate: dueDate });
-                            break; // Detenerse en el cobro más antiguo pendiente, no inundar la pantalla
+                            
+                            let existsAny = db.payments.some(p => p.contractId === c.id && p.month === monthStr);
+                            if (!existsAny) {
+                                db.payments.push({
+                                    id: generateId(), contractId: c.id, month: monthStr, amount: r.price,
+                                    status: 'Pendiente', method: '', date: '', obs: 'Generado automáticamente'
+                                });
+                                addedNewPending = true;
+                            }
+                            // Solo mostramos la alerta más antigua de este rango corto y nos detenemos
+                            break; 
                         }
-                    } else {
-                        // Si diffDays es > 3, este pago está muy en el futuro (ej: faltan 20 días).
-                        // No necesitamos seguir buscando porque ya estamos al día.
-                        break;
                     }
-                    monthOffset++;
                 }
             });
 
-            // Actualizar la bolita roja en el Dashboard
+            if (addedNewPending) {
+                saveData();
+                if (typeof renderPayments === 'function') renderPayments();
+            }
+
             document.getElementById('dash-debt').textContent = alerts.length;
 
             if(alerts.length === 0) {
@@ -1168,7 +1171,6 @@
                     }
 
                     let dueStr = item.dueDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
-                    
                     let msg = `Hola ${item.tenant.name}, le saludamos de la administración del ${db.settings.buildingName}. Le recordamos amablemente que el pago de su alquiler (Hab. ${item.room.num}) correspondiente al mes de ${item.monthStr} vence o venció el ${dueStr}. Agradecemos mucho su puntualidad. ¡Que tenga un excelente día!`;
                     let wspUrl = item.tenant.phone ? `https://wa.me/${item.tenant.phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}` : '#';
                     
@@ -1184,14 +1186,113 @@
                                 ${statusBadge}
                             </td>
                             <td class="px-6 py-4 text-right">
-                                <a href="${wspUrl}" target="_blank" class="inline-flex items-center px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors shadow-sm">
-                                    <i class="fa-brands fa-whatsapp mr-1.5 text-sm"></i> Cobrar
-                                </a>
+                                <div class="flex justify-end gap-2">
+                                    <button onclick="quickPayAlert('${item.contract.id}', '${item.monthStr}')" class="inline-flex items-center px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-lg transition-colors shadow-sm" title="Marcar como Pagado">
+                                        <i class="fa-solid fa-check"></i>
+                                    </button>
+                                    <a href="${wspUrl}" target="_blank" class="inline-flex items-center px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors shadow-sm" title="Cobrar por WhatsApp">
+                                        <i class="fa-brands fa-whatsapp mr-1 text-sm"></i> Cobrar
+                                    </a>
+                                    <!-- BOTÓN PARA BORRAR LA ALERTA -->
+                                    <button onclick="dismissAlert('${item.contract.id}', '${item.monthStr}')" class="inline-flex items-center px-3 py-1.5 bg-gray-500 hover:bg-gray-600 text-white text-xs font-medium rounded-lg transition-colors shadow-sm" title="Limpiar historial de alertas">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     `;
                 });
             }
+        }
+
+        // --- BOTONES DE ACCIÓN PARA EL DASHBOARD ---
+        function quickPayAlert(contractId, monthStr) {
+            Swal.fire({
+                title: '¿Confirmar Pago?',
+                text: `Se registrará el pago de ${monthStr} con fecha de hoy.`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#3b82f6',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Sí, ya pagó'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    let existing = db.payments.find(p => p.contractId === contractId && p.month === monthStr && p.status === 'Pendiente');
+                    if (existing) {
+                        existing.status = 'Pagado';
+                        existing.date = new Date().toISOString().split('T')[0];
+                        existing.method = 'Efectivo';
+                        existing.obs = 'Cobrado rápido desde alertas';
+                    } else {
+                        let c = db.contracts.find(x => x.id === contractId);
+                        let r = db.rooms.find(x => x.id === c.roomId);
+                        db.payments.push({
+                            id: generateId(), contractId: contractId, month: monthStr, amount: r ? r.price : 0,
+                            status: 'Pagado', method: 'Efectivo', date: new Date().toISOString().split('T')[0], obs: 'Cobrado rápido desde alertas'
+                        });
+                    }
+                    saveData();
+                    if (typeof renderPayments === 'function') renderPayments();  
+                    renderDashboard(); 
+                    Swal.fire('Registrado', 'El pago fue guardado exitosamente.', 'success');
+                }
+            });
+        }
+
+        // NUEVO PODER DE BORRADO: Limpia todas las deudas pasadas de golpe
+        function dismissAlert(contractId, monthStr) {
+            Swal.fire({
+                title: '¿Limpiar Historial?',
+                text: `Se borrará esta alerta y cualquier otra deuda vieja de este inquilino para dejarlo al día.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#6b7280',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Sí, limpiar',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    let c = db.contracts.find(x => x.id === contractId);
+                    let r = db.rooms.find(x => x.id === c.roomId);
+                    let startMonthStr = c.startDate.substring(0,7);
+                    
+                    let [sYear, sMonth] = startMonthStr.split('-').map(Number);
+                    
+                    // Calculamos el mes actual para anular hasta hoy
+                    let now = new Date();
+                    let eYear = now.getFullYear();
+                    let eMonth = now.getMonth() + 1;
+                    
+                    let currY = sYear;
+                    let currM = sMonth;
+                    
+                    // Bucle maestro: Convierte en 'Anulado' todos los meses hasta el actual
+                    while (currY < eYear || (currY === eYear && currM <= eMonth)) {
+                        let mStr = `${currY}-${String(currM).padStart(2,'0')}`;
+                        
+                        let existing = db.payments.find(p => p.contractId === contractId && p.month === mStr && p.status === 'Pendiente');
+                        if (existing) {
+                            existing.status = 'Anulado';
+                            existing.obs = 'Historial limpiado manualmente';
+                        } else {
+                            let isPaid = db.payments.some(p => p.contractId === contractId && p.month === mStr && (p.status === 'Pagado' || p.status === 'Anulado'));
+                            if (!isPaid) {
+                                db.payments.push({
+                                    id: generateId(), contractId: contractId, month: mStr, amount: r ? r.price : 0,
+                                    status: 'Anulado', method: '', date: '', obs: 'Historial limpiado manualmente'
+                                });
+                            }
+                        }
+                        currM++;
+                        if (currM > 12) { currM = 1; currY++; }
+                    }
+
+                    saveData();
+                    if (typeof renderPayments === 'function') renderPayments();  
+                    renderDashboard(); 
+                    Swal.fire('¡Limpio!', 'Las alertas atrasadas fueron borradas de una sola vez.', 'success');
+                }
+            });
         }
 
         function renderBuildingMap() {
@@ -1701,7 +1802,11 @@
                 let t = db.tenants.find(x => x.id === c.tenantId);
                 let r = db.rooms.find(x => x.id === c.roomId);
                 
-                let badge = p.status === 'Pagado' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                // Muestra color Gris para los que fueron "Borrados/Anulados"
+                let badge = p.status === 'Pagado' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 
+                            p.status === 'Anulado' ? 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' : 
+                            'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
+                
                 let obsHtml = p.obs ? `<div class="text-[10px] text-gray-400 mt-1"><i class="fa-solid fa-circle-info"></i> ${p.obs}</div>` : '';
                 
                 let wspUrl = '#';
@@ -1791,8 +1896,12 @@
         function markAsPaid(id) {
             let p = db.payments.find(x => x.id === id);
             if(p) {
-                p.status = 'Pagado'; p.date = new Date().toISOString().split('T')[0]; p.method = 'Efectivo'; 
-                saveData(); renderPayments();
+                p.status = 'Pagado'; 
+                p.date = new Date().toISOString().split('T')[0]; 
+                p.method = 'Efectivo'; 
+                saveData(); 
+                renderPayments();
+                renderDashboard(); // Esto es clave para que la alerta del inicio se borre al instante
                 Swal.fire('Actualizado', 'Pago completado', 'success');
             }
         }
@@ -1989,38 +2098,8 @@
             reader.readAsText(file);
         }
 
-        // --- REPARACIÓN DE BOTONES (Exponer al entorno global) ---
-        window.openModal = openModal;
-        window.closeModal = closeModal;
-        
-        window.saveRoom = saveRoom;
-        window.editRoom = editRoom;
-        window.deleteRoom = deleteRoom;
-        
-        window.saveTenant = saveTenant;
-        window.editTenant = editTenant;
-        window.deleteTenant = deleteTenant;
-        
-        window.generateContract = generateContract;
-        window.terminateContract = terminateContract;
-        window.generatePDF = generatePDF;
-        
-        window.autoFillPayment = autoFillPayment;
-        window.calculatePartialPayment = calculatePartialPayment;
-        window.savePayment = savePayment;
-        window.markAsPaid = markAsPaid;
-        window.deletePayment = deletePayment;
-        
-        window.renderOwnerPayments = renderOwnerPayments;
-        window.saveOwnerPayment = saveOwnerPayment;
-        window.deleteOwnerPayment = deleteOwnerPayment;
-        
-        window.saveSettings = saveSettings;
-        window.exportBackup = exportBackup;
-        window.importBackup = importBackup;
-
         // Arrancar la APP
-        window.onload = initApp;
+        document.addEventListener('DOMContentLoaded', initApp);
 
     </script>
 </body>
